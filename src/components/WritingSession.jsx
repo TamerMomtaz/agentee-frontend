@@ -12,8 +12,11 @@ const MODES = [
 export default function WritingSession({ onEnd, onChunk }) {
   const [chunks, setChunks] = useState([]);
   const [mode, setMode] = useState('dialogue');
-  const [lang, setLang] = useState('en-US');
+  const [lang, setLang] = useState('ar-EG'); // ★ Default to Arabic since that's Tee's primary book language
 
+  // ★ FIX: This callback updates every time `mode` changes.
+  // The fixed useSpeechRecognition hook uses a ref internally,
+  // so the running recognition always calls the LATEST version of this callback.
   const onResult = useCallback((text) => {
     const chunk = { type: mode, text, lang, ts: Date.now() };
     setChunks(p => [...p, chunk]);
@@ -23,17 +26,20 @@ export default function WritingSession({ onEnd, onChunk }) {
   const speech = useSpeechRecognition({ lang, continuous: true, onResult });
 
   const toggleLang = () => {
-    const newLang = lang === 'en-US' ? 'ar-EG' : lang === 'ar-EG' ? 'arz' : 'en-US';
+    // ★ FIX: Only toggle between en-US and ar-EG
+    // 'arz' is not a valid Web Speech API language code and caused silent failures
+    const newLang = lang === 'en-US' ? 'ar-EG' : 'en-US';
     if (speech.listening) {
       speech.stop();
       setLang(newLang);
-      setTimeout(() => speech.start(newLang), 300);
+      // ★ FIX: Increased delay from 300ms to 500ms for more reliable restart
+      setTimeout(() => speech.start(newLang), 500);
     } else {
       setLang(newLang);
     }
   };
 
-  const langLabel = lang === 'en-US' ? '🇬🇧 EN' : lang === 'ar-EG' ? '🇪🇬 AR' : '🇪🇬 عامية';
+  const langLabel = lang === 'en-US' ? '🇬🇧 EN' : '🇪🇬 عامية';
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -58,7 +64,7 @@ export default function WritingSession({ onEnd, onChunk }) {
         }}>⏹ End Session</button>
       </div>
 
-      {/* Mode selector */}
+      {/* Mode selector — ★ now shows active mode clearly */}
       <div style={{ padding: '8px 16px', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
         {MODES.map(m => (
           <button
@@ -70,9 +76,21 @@ export default function WritingSession({ onEnd, onChunk }) {
               background: mode === m.key ? m.color + '15' : 'transparent',
               color: mode === m.key ? m.color : 'rgba(224,232,240,0.4)',
               cursor: 'pointer', transition: 'all 0.2s',
+              // ★ Added: stronger visual indicator for active mode
+              fontWeight: mode === m.key ? '600' : '400',
+              boxShadow: mode === m.key ? `0 0 8px ${m.color}30` : 'none',
             }}
           >{m.label}</button>
         ))}
+      </div>
+
+      {/* ★ Active mode indicator — shows what type will be recorded next */}
+      <div style={{
+        padding: '2px 16px 6px', fontSize: '0.6rem', fontFamily: 'monospace',
+        color: MODES.find(m => m.key === mode)?.color || '#4FC3F7',
+        opacity: 0.7,
+      }}>
+        Recording as: {MODES.find(m => m.key === mode)?.label} • {langLabel}
       </div>
 
       {/* Chunks display */}
@@ -105,6 +123,17 @@ export default function WritingSession({ onEnd, onChunk }) {
             {speech.interim}
           </div>
         )}
+
+        {/* Empty state */}
+        {chunks.length === 0 && !speech.listening && (
+          <div style={{
+            textAlign: 'center', padding: '40px 20px',
+            color: 'rgba(224,232,240,0.2)', fontSize: '0.8rem',
+          }}>
+            Select a mode above, then tap 🎙 to start capturing.<br />
+            Switch modes while recording — each segment gets tagged.
+          </div>
+        )}
       </div>
 
       {/* Record button */}
@@ -117,9 +146,9 @@ export default function WritingSession({ onEnd, onChunk }) {
           onClick={() => { if (speech.listening) speech.stop(); else speech.start(lang); }}
           style={{
             width: 64, height: 64, borderRadius: '50%',
-            border: speech.listening ? '3px solid #EF5350' : '3px solid rgba(255,213,79,0.4)',
+            border: speech.listening ? '3px solid #EF5350' : `3px solid ${MODES.find(m => m.key === mode)?.color || '#FFD54F'}40`,
             background: speech.listening ? 'rgba(239,83,80,0.15)' : 'rgba(255,213,79,0.06)',
-            color: speech.listening ? '#EF5350' : '#FFD54F',
+            color: speech.listening ? '#EF5350' : MODES.find(m => m.key === mode)?.color || '#FFD54F',
             cursor: 'pointer', fontSize: '1.4rem',
             animation: speech.listening ? 'mic-pulse 1.2s ease-in-out infinite' : 'none',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
