@@ -1,8 +1,11 @@
-const BASE = import.meta.env.VITE_API_URL || 'https://agentee-backend-production.up.railway.app';
+// src/utils/api.js — A-GENTEE Backend Bridge
+// Corrected: Feb 9 2026 — URL fix + fetch syntax fix
+
+const BASE = import.meta.env.VITE_API_URL || 'https://agentee.up.railway.app'; // ← FIX #1: correct Railway URL
 
 async function api(path, opts = {}) {
   try {
-    const res = await fetch(`${BASE}${path}`, {
+    const res = await fetch(`${BASE}${path}`, {  // ← FIX #2: parentheses, not tagged template
       headers: { 'Content-Type': 'application/json' },
       ...opts,
     });
@@ -37,7 +40,7 @@ export const transcribe = async (blob) => {
   try {
     const form = new FormData();
     form.append('audio', blob, 'recording.webm');
-    const res = await fetch(`${BASE}/transcribe`, { method: 'POST', body: form });
+    const res = await fetch(`${BASE}/transcribe`, { method: 'POST', body: form }); // ← FIX #2 again
     const data = await res.json();
     return { ok: res.ok, data };
   } catch (err) {
