@@ -11,6 +11,13 @@ export default function useSpeechRecognition({ lang = 'en-US', onResult, onInter
   const stopping = useRef(false);
   const supported = !!SpeechRecognition;
 
+  // ★ FIX: Use refs for callbacks so the running recognition always calls the LATEST version
+  const onResultRef = useRef(onResult);
+  const onInterimRef = useRef(onInterim);
+
+  useEffect(() => { onResultRef.current = onResult; }, [onResult]);
+  useEffect(() => { onInterimRef.current = onInterim; }, [onInterim]);
+
   const stop = useCallback(() => {
     stopping.current = true;
     if (recRef.current) {
@@ -22,6 +29,7 @@ export default function useSpeechRecognition({ lang = 'en-US', onResult, onInter
 
   const start = useCallback((language) => {
     if (!SpeechRecognition) return;
+
     // Clean up any existing instance
     if (recRef.current) {
       try { recRef.current.stop(); } catch (_) {}
@@ -32,12 +40,12 @@ export default function useSpeechRecognition({ lang = 'en-US', onResult, onInter
     rec.continuous = continuous;
     rec.interimResults = true;
     rec.maxAlternatives = 1;
-
     stopping.current = false;
 
     rec.onresult = (e) => {
       let interimText = '';
       let finalText = '';
+
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const transcript = e.results[i][0].transcript;
         if (e.results[i].isFinal) {
@@ -46,18 +54,21 @@ export default function useSpeechRecognition({ lang = 'en-US', onResult, onInter
           interimText += transcript;
         }
       }
+
       if (interimText) {
         setInterim(interimText);
-        if (onInterim) onInterim(interimText);
+        // ★ FIX: Call via ref — always gets latest callback
+        if (onInterimRef.current) onInterimRef.current(interimText);
       }
+
       if (finalText) {
         setInterim('');
-        if (onResult) onResult(finalText);
+        // ★ FIX: Call via ref — always gets latest callback (with current mode)
+        if (onResultRef.current) onResultRef.current(finalText);
       }
     };
 
     rec.onerror = (e) => {
-      // Language change or abort — NOT a crash, just stop gracefully
       if (e.error === 'aborted' || e.error === 'no-speech') return;
       console.warn('SpeechRecognition error:', e.error);
       setListening(false);
@@ -65,7 +76,6 @@ export default function useSpeechRecognition({ lang = 'en-US', onResult, onInter
     };
 
     rec.onend = () => {
-      // Auto-restart if we didn't intentionally stop (for continuous listening)
       if (!stopping.current && continuous) {
         try { rec.start(); } catch (_) {
           setListening(false);
@@ -84,7 +94,7 @@ export default function useSpeechRecognition({ lang = 'en-US', onResult, onInter
     } catch (err) {
       console.error('Failed to start speech recognition:', err);
     }
-  }, [lang, continuous, onResult, onInterim]);
+  }, [lang, continuous]); // ★ FIX: removed onResult/onInterim from deps — refs handle freshness
 
   // Cleanup on unmount
   useEffect(() => {
