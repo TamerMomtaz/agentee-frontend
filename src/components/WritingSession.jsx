@@ -1,6 +1,6 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback } from 'react';
 import Wave from './Wave.jsx';
-import PanelPreview from './PanelPreview.jsx';
+import PanelBuilder from './PanelBuilder.jsx';
 import useSpeechRecognition from '../hooks/useSpeechRecognition.js';
 import { parseDirection, panelToMarkdown } from '../utils/parseDirection.js';
 import { think, saveIdea } from '../utils/api.js';
@@ -42,16 +42,16 @@ export default function WritingSession({ onEnd, onChunk }) {
   // === Clipboard feedback ===
   const [copied, setCopied] = useState(false);
 
-  // === Parsed panel previews for direction chunks ===
-  const parsedPanels = useMemo(() => {
-    const map = {};
-    chunks.forEach((c, i) => {
-      if (c.type === 'direction') {
-        map[i] = parseDirection(c.text);
-      }
-    });
-    return map;
-  }, [chunks]);
+  // === Panel configurations for direction chunks ===
+  // Key: chunk index, Value: panel data object (from PanelBuilder)
+  // Parser runs to provide initial suggestions, user overrides via PanelBuilder
+  const [panelConfigs, setPanelConfigs] = useState({});
+
+  const getPanelSuggestion = (text) => parseDirection(text);
+
+  const updatePanelConfig = (chunkIdx, panelData) => {
+    setPanelConfigs(prev => ({ ...prev, [chunkIdx]: panelData }));
+  };
 
   // ──────────────────────────────────────
   // SPEECH RECOGNITION (same ref-based fix from Session 4)
@@ -152,9 +152,9 @@ Structure into a readable, formatted chapter draft. Use markdown formatting.`;
     // Fallback: format raw chunks with storyboard panel data for directions
     return chunks.map((c, i) => {
       let line = `**[${c.type.toUpperCase()}]** ${c.text}`;
-      // Append storyboard panel layout for direction chunks
-      if (parsedPanels[i]) {
-        line += '\n' + panelToMarkdown(parsedPanels[i]);
+      // Append storyboard panel layout for direction chunks (user-configured)
+      if (panelConfigs[i]) {
+        line += '\n' + panelToMarkdown(panelConfigs[i]);
       }
       return line;
     }).join('\n\n');
@@ -298,8 +298,14 @@ Structure into a readable, formatted chapter draft. Use markdown formatting.`;
                     <span className="ws-chunk-type" style={{ color: m.color }}>{m.label}</span>
                     <div className="ws-chunk-text">{c.text}</div>
                   </div>
-                  {/* Live wireframe panel preview for direction chunks */}
-                  {parsedPanels[i] && <PanelPreview panel={parsedPanels[i]} />}
+                  {/* Interactive panel builder for direction chunks */}
+                  {c.type === 'direction' && (
+                    <PanelBuilder
+                      suggestion={getPanelSuggestion(c.text)}
+                      chunkText={c.text}
+                      onPanelChange={(data) => updatePanelConfig(i, data)}
+                    />
+                  )}
                 </div>
               );
             })}
@@ -424,8 +430,14 @@ Structure into a readable, formatted chapter draft. Use markdown formatting.`;
                         style={{ cursor: 'pointer', direction: c.lang?.startsWith('ar') ? 'rtl' : 'ltr' }}>
                         {c.text}
                       </div>
-                      {/* Panel preview for direction chunks (also visible in review) */}
-                      {parsedPanels[i] && <PanelPreview panel={parsedPanels[i]} />}
+                      {/* Panel builder for direction chunks (interactive in review too) */}
+                      {c.type === 'direction' && (
+                        <PanelBuilder
+                          suggestion={getPanelSuggestion(c.text)}
+                          chunkText={c.text}
+                          onPanelChange={(data) => updatePanelConfig(i, data)}
+                        />
+                      )}
                     </>
                   )}
                 </div>
