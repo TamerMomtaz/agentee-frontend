@@ -6,7 +6,7 @@ import Splash from './components/Splash.jsx';
 import Chat from './components/Chat.jsx';
 import WritingSession from './components/WritingSession.jsx';
 import Library from './components/Library.jsx';
-import { healthCheck, think, saveIdea } from './utils/api.js';
+import { healthCheck, saveIdea } from './utils/api.js';
 
 export default function App() {
   const [msgs, setMsgs] = useState([]);
@@ -30,50 +30,20 @@ export default function App() {
   }, []);
 
   const saveChat = async () => {
-    // Save the full chat as an idea with category "saved_chat"
     const chatContent = msgs.map(m => `[${m.role}] ${m.content}`).join('\n');
     const { ok } = await saveIdea(chatContent, 'saved_chat');
     if (ok) { setSaved(true); setTimeout(() => setSaved(false), 3000); }
   };
 
+  // Each voice chunk auto-saves to backend during capture
   const onWritingChunk = (ch) => {
-    // Save each book chunk with its type as category
     saveIdea(ch.text, `book_${ch.type}`).catch(() => {});
   };
 
-  const onWritingEnd = async (chunks) => {
+  // WritingSession now handles AI organize + export internally.
+  // onEnd just means "user is done with Book Mode — go back to chat."
+  const onWritingEnd = () => {
     setMode('chat');
-    if (!chunks.length) return;
-
-    const raw = chunks.map(c => '[' + c.type.toUpperCase() + '] ' + c.text).join('\n\n');
-    const prompt = `You are helping Tee write his trilingual comic book (Egyptian Arabic + English). Organize these raw voice captures into a structured chapter draft with:
-1) Dialogue with character names
-2) Narration
-3) Scene directions
-4) Keep original language as spoken
-5) Suggest where illustrations go (comic panels)
-
-Raw captures:
-${raw}
-
-Structure into a readable chapter draft.`;
-
-    setMsgs(p => [...p, {
-      role: 'user',
-      content: '✍️ Session ended — ' + chunks.length + ' segments. Organizing...',
-      ts: Date.now(),
-    }]);
-    setLoading(true);
-
-    const { ok, data } = await think(prompt, { modelOverride: 'claude-opus' });
-    setMsgs(p => [...p, {
-      role: 'assistant',
-      content: ok ? (data?.response || 'Could not organize.') : 'Error organizing session.',
-      engine: 'claude-opus',
-      category: 'book-draft',
-      ts: Date.now(),
-    }]);
-    setLoading(false);
   };
 
   if (splash) return <Splash />;
