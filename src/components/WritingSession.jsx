@@ -3,6 +3,7 @@ import Wave from './Wave.jsx';
 import PanelBuilder from './PanelBuilder.jsx';
 import useSpeechRecognition from '../hooks/useSpeechRecognition.js';
 import { parseDirection, panelToMarkdown } from '../utils/parseDirection.js';
+import { panelToSVGString, generateStoryboardHTML } from '../utils/panelToSVGString.js';
 import { think, saveIdea } from '../utils/api.js';
 
 // --- Constants ---
@@ -38,6 +39,9 @@ export default function WritingSession({ onEnd, onChunk }) {
   const [organized, setOrganized] = useState('');
   const [organizing, setOrganizing] = useState(false);
   const [orgError, setOrgError] = useState('');
+  // AI-suggested panel configs (from organize step)
+  // Array of { panelNumber, layout, background, characters, bubbles, directionText }
+  const [aiPanels, setAiPanels] = useState([]);
 
   // === Clipboard feedback ===
   const [copied, setCopied] = useState(false);
@@ -120,24 +124,100 @@ export default function WritingSession({ onEnd, onChunk }) {
   const organizeWithAI = async () => {
     setOrganizing(true);
     setOrgError('');
+    setAiPanels([]);
     const raw = chunks.map(c => '[' + c.type.toUpperCase() + '] ' + c.text).join('\n\n');
-    const prompt = `You are helping Tee write his trilingual comic book (Egyptian Arabic + English). Organize these raw voice captures into a structured chapter draft with:
+
+    // Enhanced prompt: request BOTH organized text AND structured panel configs
+    const prompt = `You are helping Tee write his trilingual comic book (Egyptian Arabic + English). Organize these raw voice captures into a structured chapter draft.
+
+IMPORTANT: Your response MUST have TWO sections separated by the exact marker "===PANELS===".
+
+SECTION 1 (before the marker): The organized chapter draft in markdown with:
 1) Dialogue with character names (keep original language as spoken)
 2) Narration passages
 3) Scene directions and visual notes
-4) Suggestions for where illustrations go (comic panels)
-5) Keep Egyptian Arabic as-is — do NOT translate it
+4) Keep Egyptian Arabic as-is — do NOT translate it
+
+SECTION 2 (after the marker): A JSON array of panel configurations for each scene direction. Each panel object should have:
+- "panelNumber": sequential number
+- "layout": one of "wide", "tall", "closeup", "medium", "establishing", "split", "fullpage", "small" — choose based on the scene mood
+- "background": one of "city", "ocean", "desert", "sky", "interior", "street", "forest", "mountain", "factory", "space", "abstract" or null
+- "characters": array of { "name": string, "position": "left"|"center"|"right"|"foreground"|"background", "pose": "standing"|"sitting"|"walking"|"running"|"looking"|"pointing"|"turning"|"flying" }
+- "bubbles": array of { "type": "speech"|"thought", "text": string } — preserve original Arabic/English
+- "directionText": the original direction text this panel represents
+
+Interpret the poetic/natural language carefully. For example:
+- "واقفة على جنب" → character standing to the side (position: "right" or "left", pose: "standing")
+- "بيتفرج" → character watching/looking (pose: "looking")
+- "السحاب ابتدت تجمع" → sky background with clouds
+- "From the horizon" → establishing or wide layout
+- "A fleet of birds was coming" → sky background, wide or establishing layout
+
+Be creative with the visual interpretation. Every direction segment should produce a panel.
 
 Raw captures (${chunks.length} segments):
 ${raw}
 
-Structure into a readable, formatted chapter draft. Use markdown formatting.`;
+Remember: organized text FIRST, then ===PANELS=== marker, then JSON array.`;
 
     const { ok, data } = await think(prompt);
     if (ok && data?.response) {
-      setOrganized(data.response);
-      // Auto-save organized draft to Library
-      saveIdea(data.response, 'book_organized').catch(() => {});
+      const response = data.response;
+
+      // Parse the two sections
+      const markerIdx = response.indexOf('===PANELS===');
+      let organizedText = response;
+      let panelsJson = [];
+
+      if (markerIdx !== -1) {
+        organizedText = response.substring(0, markerIdx).trim();
+        const jsonPart = response.substring(markerIdx + '===PANELS==='.length).trim();
+
+        // Extract JSON — handle markdown code blocks if AI wraps it
+        let cleanJson = jsonPart;
+        const codeBlockMatch = jsonPart.match(/```(?:json)?\s*([\s\S]*?)```/);
+        if (codeBlockMatch) {
+          cleanJson = codeBlockMatch[1].trim();
+        }
+
+        try {
+          panelsJson = JSON.parse(cleanJson);
+          if (!Array.isArray(panelsJson)) panelsJson = [];
+        } catch (e) {
+          console.warn('Could not parse panel JSON from AI:', e);
+          panelsJson = [];
+        }
+      }
+
+      setOrganized(organizedText);
+      setAiPanels(panelsJson);
+
+      // Auto-populate panelConfigs from AI suggestions
+      // Map AI panels to direction chunk indices
+      const directionChunkIndices = chunks
+        .map((c, i) => c.type === 'direction' ? i : -1)
+        .filter(i => i !== -1);
+
+      const newConfigs = {};
+      panelsJson.forEach((panel, i) => {
+        // Try to match to direction chunks by index or by text similarity
+        const chunkIdx = directionChunkIndices[i] !== undefined
+          ? directionChunkIndices[i]
+          : i;
+        if (chunkIdx !== undefined) {
+          newConfigs[chunkIdx] = {
+            layout: panel.layout || 'medium',
+            background: panel.background || null,
+            characters: panel.characters || [],
+            bubbles: panel.bubbles || [],
+            raw: panel.directionText || chunks[chunkIdx]?.text || '',
+          };
+        }
+      });
+      setPanelConfigs(prev => ({ ...prev, ...newConfigs }));
+
+      // Auto-save
+      saveIdea(organizedText, 'book_organized').catch(() => {});
     } else {
       setOrgError('Could not organize — check backend connection and try again.');
     }
@@ -192,6 +272,85 @@ Structure into a readable, formatted chapter draft. Use markdown formatting.`;
       setTimeout(() => setCopied(false), 2000);
     }
   };
+
+  // ── Visual Storyboard Export ──
+  // Generates a beautiful HTML storyboard document with SVG panel wireframes
+  // and organized text. Opens in new tab for print-to-PDF or downloads as .html
+  const exportStoryboard = (openForPrint = false) => {
+    // Build panel data array from configured panels (AI-suggested + user-edited)
+    const panelsForExport = [];
+
+    if (aiPanels.length > 0) {
+      // Use AI panel ordering
+      const dirIndices = chunks
+        .map((c, i) => c.type === 'direction' ? i : -1)
+        .filter(i => i !== -1);
+
+      aiPanels.forEach((aiPanel, i) => {
+        const chunkIdx = dirIndices[i] !== undefined ? dirIndices[i] : i;
+        // Prefer user-edited config, fall back to AI suggestion
+        const config = panelConfigs[chunkIdx] || {
+          layout: aiPanel.layout || 'medium',
+          background: aiPanel.background || null,
+          characters: aiPanel.characters || [],
+          bubbles: aiPanel.bubbles || [],
+        };
+        panelsForExport.push({
+          panelData: config,
+          directionText: aiPanel.directionText || chunks[chunkIdx]?.text || '',
+          panelNumber: aiPanel.panelNumber || i + 1,
+        });
+      });
+    } else {
+      // No AI panels — use manually configured panels from direction chunks
+      let panelNum = 1;
+      chunks.forEach((c, i) => {
+        if (c.type === 'direction' && panelConfigs[i]) {
+          panelsForExport.push({
+            panelData: panelConfigs[i],
+            directionText: c.text,
+            panelNumber: panelNum++,
+          });
+        }
+      });
+    }
+
+    // Generate HTML document
+    const title = organized
+      ? (organized.match(/#+\s*(.+)/)?.[1] || 'Storyboard')
+      : 'A-GENTEE Storyboard';
+
+    const html = generateStoryboardHTML(title, panelsForExport, organized || null);
+
+    if (openForPrint) {
+      // Open in new tab for print-to-PDF
+      const win = window.open('', '_blank');
+      if (win) {
+        win.document.write(html);
+        win.document.close();
+        // Auto-print after a short delay for rendering
+        setTimeout(() => win.print(), 600);
+      }
+    } else {
+      // Download as .html file
+      const blob = new Blob([html], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `agentee-storyboard-${new Date().toISOString().slice(0, 10)}.html`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+  };
+
+  // Check if we have any panel data to export as storyboard
+  const hasStoryboardPanels = aiPanels.length > 0 ||
+    Object.keys(panelConfigs).some(k => {
+      const cfg = panelConfigs[k];
+      return cfg && (cfg.characters?.length > 0 || cfg.background || cfg.bubbles?.length > 0);
+    });
 
   // ──────────────────────────────────────
   // STEP NAVIGATION
@@ -501,6 +660,40 @@ Structure into a readable, formatted chapter draft. Use markdown formatting.`;
               <div className="ws-org-result">
                 <div className="ws-org-result-title">📝 Organized Chapter Draft</div>
                 <div className="ws-org-result-content">{organized}</div>
+
+                {/* AI-suggested panel storyboard */}
+                {aiPanels.length > 0 && (
+                  <div className="ws-panels-section">
+                    <div className="ws-panels-title">🎬 AI Panel Suggestions — tap to edit</div>
+                    <div className="ws-panels-grid">
+                      {aiPanels.map((panel, i) => {
+                        // Find matching direction chunk index
+                        const dirIndices = chunks
+                          .map((c, idx) => c.type === 'direction' ? idx : -1)
+                          .filter(idx => idx !== -1);
+                        const chunkIdx = dirIndices[i] !== undefined ? dirIndices[i] : i;
+                        const currentConfig = panelConfigs[chunkIdx] || {
+                          layout: panel.layout || 'medium',
+                          background: panel.background || null,
+                          characters: panel.characters || [],
+                          bubbles: panel.bubbles || [],
+                          raw: panel.directionText || '',
+                        };
+
+                        return (
+                          <div key={i} className="ws-panel-card">
+                            <div className="ws-panel-card-number">Panel {panel.panelNumber || i + 1}</div>
+                            <PanelBuilder
+                              suggestion={currentConfig}
+                              chunkText={panel.directionText || ''}
+                              onPanelChange={(data) => updatePanelConfig(chunkIdx, data)}
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -515,7 +708,7 @@ Structure into a readable, formatted chapter draft. Use markdown formatting.`;
               </button>
             ) : (
               <>
-                <button onClick={() => { setOrganized(''); setOrgError(''); }}
+                <button onClick={() => { setOrganized(''); setOrgError(''); setAiPanels([]); }}
                   className="ws-nav-btn ws-nav-retry">↻ Re-organize</button>
                 <button onClick={nextStep} className="ws-nav-btn ws-nav-next">Export →</button>
               </>
@@ -533,7 +726,47 @@ Structure into a readable, formatted chapter draft. Use markdown formatting.`;
           </div>
 
           <div className="ws-chunks-scroll">
-            {/* Export preview */}
+            {/* Storyboard panel preview (if panels exist) */}
+            {hasStoryboardPanels && (
+              <div className="ws-export-storyboard">
+                <div className="ws-export-storyboard-title">🎬 Storyboard Panels</div>
+                <div className="ws-export-storyboard-hint">
+                  These panels will be included in your storyboard export with full visual wireframes
+                </div>
+                <div className="ws-export-panels-mini">
+                  {(aiPanels.length > 0 ? aiPanels : chunks
+                    .map((c, i) => c.type === 'direction' && panelConfigs[i] ? { idx: i, ...panelConfigs[i] } : null)
+                    .filter(Boolean)
+                  ).map((panel, i) => {
+                    const dirIndices = chunks
+                      .map((c, idx) => c.type === 'direction' ? idx : -1)
+                      .filter(idx => idx !== -1);
+                    const chunkIdx = aiPanels.length > 0
+                      ? (dirIndices[i] !== undefined ? dirIndices[i] : i)
+                      : panel.idx;
+                    const config = panelConfigs[chunkIdx] || {
+                      layout: panel.layout || 'medium',
+                      background: panel.background || null,
+                      characters: panel.characters || [],
+                      bubbles: panel.bubbles || [],
+                    };
+
+                    return (
+                      <div key={i} className="ws-export-panel-thumb">
+                        <div className="ws-export-panel-num">P{(panel.panelNumber || i + 1)}</div>
+                        <PanelBuilder
+                          suggestion={config}
+                          chunkText={panel.directionText || chunks[chunkIdx]?.text || ''}
+                          onPanelChange={(data) => updatePanelConfig(chunkIdx, data)}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Text export preview */}
             <div className="ws-export-preview">
               <div className="ws-export-preview-title">
                 {organized ? '📝 Organized Draft' : '📋 Raw Segments'}
@@ -548,6 +781,7 @@ Structure into a readable, formatted chapter draft. Use markdown formatting.`;
           <div className="ws-export-footer">
             <button onClick={prevStep} className="ws-nav-btn ws-nav-prev">← Back</button>
             <div className="ws-export-actions">
+              {/* Text exports */}
               <button onClick={() => exportFile('md')} className="ws-export-btn ws-export-md">
                 📄 .md
               </button>
@@ -557,6 +791,17 @@ Structure into a readable, formatted chapter draft. Use markdown formatting.`;
               <button onClick={copyToClipboard} className="ws-export-btn ws-export-copy">
                 {copied ? '✅ Copied!' : '📋 Copy'}
               </button>
+              {/* Visual storyboard exports */}
+              {hasStoryboardPanels && (
+                <>
+                  <button onClick={() => exportStoryboard(false)} className="ws-export-btn ws-export-storyboard">
+                    🎬 Storyboard
+                  </button>
+                  <button onClick={() => exportStoryboard(true)} className="ws-export-btn ws-export-print">
+                    🖨 Print PDF
+                  </button>
+                </>
+              )}
             </div>
             <button onClick={() => onEnd([])} className="ws-nav-btn ws-nav-done">
               ✓ Done
