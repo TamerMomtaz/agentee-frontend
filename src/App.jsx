@@ -30,14 +30,15 @@ export default function App() {
   }, []);
 
   const saveChat = async () => {
-    const { ok } = await saveIdea(
-      'SAVED_CHAT|' + new Date().toISOString() + '|' + JSON.stringify(msgs)
-    );
+    // Save the full chat as an idea with category "saved_chat"
+    const chatContent = msgs.map(m => `[${m.role}] ${m.content}`).join('\n');
+    const { ok } = await saveIdea(chatContent, 'saved_chat');
     if (ok) { setSaved(true); setTimeout(() => setSaved(false), 3000); }
   };
 
   const onWritingChunk = (ch) => {
-    saveIdea('BOOK|' + ch.type + '|' + ch.text).catch(() => {});
+    // Save each book chunk with its type as category
+    saveIdea(ch.text, `book_${ch.type}`).catch(() => {});
   };
 
   const onWritingEnd = async (chunks) => {
