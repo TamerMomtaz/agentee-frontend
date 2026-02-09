@@ -1,20 +1,174 @@
-import { useState, useRef, useEffect, useCallback } from "react";
-const API = "https://agentee.up.railway.app";
-const AV = "/kahotia/avatar_closeup_512px.jpg";
-function Avatar({ size=40, pulse=false }){return(<div style={{width:size,height:size,flexShrink:0,position:"relative"}}><img src={AV} alt="K" style={{width:size,height:size,borderRadius:"50%",objectFit:"cover",border:"2px solid rgba(255,213,79,0.4)",boxShadow:pulse?"0 0 16px rgba(79,195,247,0.4)":"0 0 8px rgba(79,195,247,0.2)",transition:"box-shadow 0.5s"}} onError={e=>{e.target.style.display="none";if(e.target.nextSibling)e.target.nextSibling.style.display="flex";}}/><div style={{display:"none",width:size,height:size,borderRadius:"50%",background:"linear-gradient(135deg,#1565C0,#0D47A1)",alignItems:"center",justifyContent:"center",border:"2px solid rgba(255,213,79,0.4)",position:"absolute",top:0,left:0,color:"#FFD54F",fontSize:size*0.35,fontWeight:700}}>K</div>{pulse&&<div style={{position:"absolute",inset:-4,borderRadius:"50%",border:"2px solid rgba(79,195,247,0.3)",animation:"avatar-ripple 2s ease-out infinite",pointerEvents:"none"}}/>}</div>);}
-function Wave({active}){const c=useRef(null),a=useRef(null),t=useRef(0);useEffect(()=>{if(!active||!c.current){if(a.current)cancelAnimationFrame(a.current);return;}const cv=c.current,ctx=cv.getContext("2d"),w=(cv.width=cv.offsetWidth*2),h=(cv.height=cv.offsetHeight*2);const draw=()=>{t.current+=0.03;ctx.clearRect(0,0,w,h);[[0.5,0.28,0.008,1,"#4FC3F7"],[0.3,0.2,0.012,1.3,"#FFD54F"],[0.18,0.14,0.006,0.7,"#42A5F5"]].forEach(([op,af,fr,sp,col])=>{ctx.beginPath();ctx.strokeStyle=col;ctx.globalAlpha=op;ctx.lineWidth=2;const am=h*af;for(let x=0;x<=w;x+=2){const y=h/2+Math.sin(x*fr+t.current*sp)*am+Math.sin(x*fr*2.5+t.current*sp*1.5)*am*0.3;x===0?ctx.moveTo(x,y):ctx.lineTo(x,y);}ctx.stroke();});ctx.globalAlpha=1;a.current=requestAnimationFrame(draw);};draw();return()=>{if(a.current)cancelAnimationFrame(a.current);};},[active]);if(!active)return null;return <canvas ref={c} style={{width:"100%",height:48,opacity:0.85}}/>;}
-function Mic({onAudio,disabled}){const[rec,setRec]=useState(false);const[dur,setDur]=useState(0);const mr=useRef(null),chunks=useRef([]),tmr=useRef(null),st=useRef(0);const stop=useCallback(()=>{if(mr.current&&mr.current.state==="recording")mr.current.stop();if(tmr.current){clearInterval(tmr.current);tmr.current=null;}setRec(false);setDur(0);},[]);const start=async()=>{try{const stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}});const recorder=new MediaRecorder(stream,{mimeType:"audio/webm;codecs=opus"});chunks.current=[];recorder.ondataavailable=e=>{if(e.data.size>0)chunks.current.push(e.data);};recorder.onstop=()=>{const blob=new Blob(chunks.current,{type:"audio/webm"});stream.getTracks().forEach(t=>t.stop());if(Date.now()-st.current>800&&blob.size>1000)onAudio(blob);};mr.current=recorder;st.current=Date.now();recorder.start(250);setRec(true);tmr.current=setInterval(()=>setDur(d=>d+1),1000);}catch(err){console.error("Mic:",err);}};return(<button onClick={()=>{if(rec)stop();else start();}} disabled={disabled} style={{width:46,height:46,borderRadius:"50%",position:"relative",border:rec?"2px solid #EF5350":"2px solid rgba(79,195,247,0.35)",background:rec?"rgba(239,83,80,0.15)":"rgba(79,195,247,0.06)",color:rec?"#EF5350":"#4FC3F7",cursor:disabled?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"all 0.3s",opacity:disabled?0.4:1,flexShrink:0,animation:rec?"mic-pulse 1.2s ease-in-out infinite":"none"}}>{rec?<><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg><span style={{position:"absolute",top:-8,right:-8,background:"#EF5350",color:"#fff",fontSize:"0.55rem",borderRadius:8,padding:"1px 5px",fontFamily:"monospace"}}>{dur}s</span></>:<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm-1-9c0-.55.45-1 1-1s1 .45 1 1v6c0 .55-.45 1-1 1s-1-.45-1-1V5z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>}</button>);}
-const EM={"claude":{l:"Sonnet",c:"#CE93D8",i:"\u{1F9E0}"},"claude-opus":{l:"Opus",c:"#F48FB1",i:"\u{1F441}\u{FE0F}"},"gemini":{l:"Gemini",c:"#80CBC4",i:"\u{1F48E}"},"openai":{l:"OpenAI",c:"#FFE082",i:"\u{26A1}"},"error":{l:"Error",c:"#EF9A9A",i:"\u{26A0}\u{FE0F}"}};const em=e=>EM[e]||{l:e,c:"#90CAF9",i:"\u{1F30A}"};
-function WritingSession({onEnd,onChunk}){const[active,setActive]=useState(false);const[elapsed,setElapsed]=useState(0);const[chunks,setChunks]=useState([]);const mr=useRef(null),tmr=useRef(null),ct=useRef(null),strm=useRef(null),parts=useRef([]);const startS=async()=>{try{strm.current=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}});const rec=new MediaRecorder(strm.current,{mimeType:"audio/webm;codecs=opus"});parts.current=[];rec.ondataavailable=e=>{if(e.data.size>0)parts.current.push(e.data);};mr.current=rec;rec.start(1000);setActive(true);tmr.current=setInterval(()=>setElapsed(e=>e+1),1000);ct.current=setInterval(async()=>{if(parts.current.length>0){const blob=new Blob(parts.current,{type:"audio/webm"});parts.current=[];if(blob.size>2000){try{const fd=new FormData();fd.append("audio",blob,"chunk.webm");const res=await fetch(API+"/api/v1/think/audio",{method:"POST",body:fd});const d=await res.json();const text=d.transcription||d.transcript||"";if(text.trim()){const tp=text.toLowerCase().startsWith('"')||text.includes("dialogue")?"dialogue":text.toLowerCase().startsWith('(')||text.includes("stage")?"direction":"narration";const ch={text:text.trim(),ts:Date.now(),type:tp};setChunks(p=>[...p,ch]);onChunk(ch);}}catch(e){}}}},20000);}catch(err){console.error("WS mic:",err);}};const stopS=()=>{if(mr.current&&mr.current.state==="recording")mr.current.stop();if(strm.current)strm.current.getTracks().forEach(t=>t.stop());if(tmr.current)clearInterval(tmr.current);if(ct.current)clearInterval(ct.current);setActive(false);onEnd(chunks);};const fmt=s=>`${Math.floor(s/60)}:${(s%60).toString().padStart(2,"0")}`;const tc={dialogue:"#4FC3F7",narration:"#FFD54F",direction:"#80CBC4"};const ti={dialogue:"\u{1F4AC}",narration:"\u{1F4D6}",direction:"\u{1F3AC}"};
-return(<div style={{padding:16,display:"flex",flexDirection:"column",gap:12,flex:1,overflow:"hidden"}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}><div><div style={{fontSize:"1rem",fontWeight:700,fontFamily:"'Playfair Display',serif",color:"#FFD54F"}}>{"\u270D\uFE0F"} Writing Session</div><div style={{fontSize:"0.65rem",color:"rgba(79,195,247,0.6)",fontFamily:"monospace"}}>Book Mode — Egyptian Arabic + English</div></div>{active&&<div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:8,height:8,borderRadius:"50%",background:"#EF5350",animation:"mic-pulse 1.2s infinite"}}/><span style={{fontFamily:"monospace",fontSize:"0.85rem",color:"#EF5350"}}>{fmt(elapsed)}</span></div>}</div>{!active?<button onClick={startS} style={{padding:"14px 24px",borderRadius:16,border:"1px solid rgba(255,213,79,0.3)",background:"rgba(255,213,79,0.08)",color:"#FFD54F",fontSize:"0.9rem",cursor:"pointer",fontWeight:600}}>{"\u{1F3A4}"} Start Writing Session</button>:<button onClick={stopS} style={{padding:"14px 24px",borderRadius:16,border:"1px solid rgba(239,83,80,0.3)",background:"rgba(239,83,80,0.1)",color:"#EF5350",fontSize:"0.9rem",cursor:"pointer",fontWeight:600}}>{"\u23F9\uFE0F"} End Session — Get Draft</button>}<div style={{flex:1,overflowY:"auto",display:"flex",flexDirection:"column",gap:8}}>{active&&chunks.length===0&&<div style={{textAlign:"center",padding:20,color:"rgba(224,232,240,0.3)",fontSize:"0.8rem"}}><Wave active={true}/><p style={{marginTop:8}}>Listening... speak your thoughts.</p><p style={{fontSize:"0.7rem",marginTop:4}}>Transcribing every 20 seconds.</p></div>}{chunks.map((ch,i)=>(<div key={i} style={{padding:"8px 12px",borderRadius:12,background:"rgba(255,255,255,0.04)",border:"1px solid "+tc[ch.type]+"25",animation:"msg-appear 0.3s ease-out"}}><div style={{display:"flex",gap:6,alignItems:"center",marginBottom:4}}><span style={{fontSize:"0.7rem"}}>{ti[ch.type]}</span><span style={{fontSize:"0.6rem",color:tc[ch.type],fontFamily:"monospace",textTransform:"uppercase"}}>{ch.type}</span><span style={{fontSize:"0.55rem",color:"rgba(224,232,240,0.2)",fontFamily:"monospace",marginLeft:"auto"}}>{new Date(ch.ts).toLocaleTimeString()}</span></div><div style={{fontSize:"0.85rem",lineHeight:1.6,color:"#E0E8F0"}}>{ch.text}</div></div>))}</div>{chunks.length>0&&<div style={{fontSize:"0.65rem",color:"rgba(79,195,247,0.4)",fontFamily:"monospace",textAlign:"center"}}>{chunks.length} segments — {chunks.filter(c=>c.type==="dialogue").length} dialogue, {chunks.filter(c=>c.type==="narration").length} narration</div>}</div>);}
-export default function App(){const[msgs,setMsgs]=useState([]);const[input,setInput]=useState("");const[loading,setLoading]=useState(false);const[status,setStatus]=useState(null);const[splash,setSplash]=useState(true);const[opus,setOpus]=useState(false);const[mode,setMode]=useState("chat");const[saved,setSaved]=useState(false);const endRef=useRef(null);const audioRef=useRef(null);
-useEffect(()=>{fetch(API+"/api/v1/health").then(r=>r.json()).then(d=>{setStatus(d);setTimeout(()=>setSplash(false),2400);}).catch(()=>{setStatus({status:"offline"});setTimeout(()=>setSplash(false),2400);});},[]);useEffect(()=>{endRef.current?.scrollIntoView({behavior:"smooth"});},[msgs,loading]);
-const send=async(text)=>{if(!text.trim()||loading)return;setMsgs(p=>[...p,{role:"user",content:text.trim(),ts:Date.now()}]);setInput("");setLoading(true);try{const body={query:text.trim()};if(opus)body.model_override="claude-opus";const res=await fetch(API+"/api/v1/think",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});const d=await res.json();setMsgs(p=>[...p,{role:"assistant",content:d.response||d.error||"...",engine:opus?"claude-opus":(d.engine||"unknown"),category:d.category||"",ts:Date.now(),vid:d.voice_id||null}]);if(d.voice_id)play(d.voice_id);}catch(err){setMsgs(p=>[...p,{role:"assistant",content:"\u{1F30A} Error: "+err.message,engine:"error",ts:Date.now()}]);}setLoading(false);};
-const sendAudio=async(blob)=>{if(loading)return;setMsgs(p=>[...p,{role:"user",content:"\u{1F3A4} Sending voice...",ts:Date.now(),isVoice:true}]);setLoading(true);try{const fd=new FormData();fd.append("audio",blob,"recording.webm");const res=await fetch(API+"/api/v1/think/audio",{method:"POST",body:fd});const d=await res.json();setMsgs(p=>{const u=[...p];const li=u.findLastIndex(m=>m.role==="user"&&m.isVoice);if(li>=0){u[li]={...u[li],content:(d.transcription||d.transcript)?'\u{1F3A4} "'+(d.transcription||d.transcript)+'"':"\u{1F3A4} (sent, no transcript)"};}return[...u,{role:"assistant",content:d.response||d.error||"...",engine:d.engine||"unknown",category:d.category||"",ts:Date.now(),vid:d.voice_id||null}];});if(d?.voice_id)play(d.voice_id);}catch(err){setMsgs(p=>[...p,{role:"assistant",content:"\u{1F30A} Voice error: "+err.message,engine:"error",ts:Date.now()}]);}setLoading(false);};
-const play=async vid=>{try{if(audioRef.current)audioRef.current.pause();const a=new Audio(API+"/api/v1/voice/"+vid);audioRef.current=a;await a.play();}catch(e){}};const onKey=e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send(input);}};
-const saveChat=async()=>{try{await fetch(API+"/api/v1/ideas",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({idea:"SAVED_CHAT|"+new Date().toISOString()+"|"+JSON.stringify(msgs)})});setSaved(true);setTimeout(()=>setSaved(false),3000);}catch(e){}};
-const onWC=ch=>{fetch(API+"/api/v1/ideas",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({idea:"BOOK|"+ch.type+"|"+ch.text})}).catch(()=>{});};
-const onWE=async chunks=>{setMode("chat");if(!chunks.length)return;const raw=chunks.map(c=>"["+c.type.toUpperCase()+"] "+c.text).join("\n\n");const prompt="You are helping Tee write his trilingual comic book (Egyptian Arabic + English). Organize these raw voice captures into a structured chapter draft with: 1) Dialogue with character names 2) Narration 3) Scene directions 4) Keep original language as spoken 5) Suggest where illustrations go (comic panels)\n\nRaw captures:\n"+raw+"\n\nStructure into a readable chapter draft.";setMsgs(p=>[...p,{role:"user",content:"\u270D\uFE0F Session ended \u2014 "+chunks.length+" segments. Organizing...",ts:Date.now()}]);setLoading(true);try{const res=await fetch(API+"/api/v1/think",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({query:prompt,model_override:"claude-opus"})});const d=await res.json();setMsgs(p=>[...p,{role:"assistant",content:d.response||"Could not organize.",engine:"claude-opus",category:"book-draft",ts:Date.now()}]);}catch(err){setMsgs(p=>[...p,{role:"assistant",content:"Error: "+err.message,engine:"error",ts:Date.now()}]);}setLoading(false);};
-if(splash){return(<div className="splash">{[...Array(25)].map((_,i)=>(<div key={i} className="particle" style={{width:2+Math.random()*3,height:2+Math.random()*3,background:i%3===0?"#FFD54F":"#4FC3F7",left:Math.random()*100+"%",top:Math.random()*100+"%",opacity:0.2+Math.random()*0.5,animationDuration:(3+Math.random()*4)+"s",animationDelay:Math.random()*2+"s"}}/>))}<div className="splash-avatar"><Avatar size={130} pulse={true}/></div><h1 className="splash-title">A-GENTEE</h1><p className="splash-sub">THE WAVE {"\u{1F30A}"}</p><p className="splash-phi">&I \u2014 AI + Human, not AI instead of Human</p><div className="splash-engines">{["Claude","Gemini","OpenAI"].map(n=>(<span key={n} className="engine-badge">{n} {"\u2705"}</span>))}</div></div>);}
-return(<div className="app"><div className="ambient-glow"/><header className="header"><Avatar size={38} pulse={loading}/><div className="header-info"><div className="header-title">A-GENTEE</div><div className="header-status" style={{color:status?.status==="alive"?"#66BB6A":"#EF5350"}}>{status?.status==="alive"?"\u{1F30A} "+(status?.components?.mind?.online||"3/3")+" engines":"\u26A0 offline"}</div></div><button onClick={()=>setMode(mode==="chat"?"writing":"chat")} style={{padding:"5px 10px",borderRadius:14,fontSize:"0.6rem",fontFamily:"monospace",fontWeight:600,border:mode==="writing"?"1px solid rgba(255,213,79,0.5)":"1px solid rgba(79,195,247,0.15)",background:mode==="writing"?"rgba(255,213,79,0.1)":"transparent",color:mode==="writing"?"#FFD54F":"rgba(79,195,247,0.4)",cursor:"pointer"}}>{mode==="writing"?"\u270D\uFE0F BOOK":"\u{1F4AC} CHAT"}</button><button onClick={()=>setOpus(!opus)} style={{padding:"5px 10px",borderRadius:14,fontSize:"0.6rem",fontFamily:"monospace",fontWeight:600,border:opus?"1px solid rgba(244,143,177,0.5)":"1px solid rgba(79,195,247,0.15)",background:opus?"rgba(244,143,177,0.12)":"transparent",color:opus?"#F48FB1":"rgba(79,195,247,0.4)",cursor:"pointer"}}>{opus?"\u{1F441}\uFE0F OPUS":"\u{1F9E0} SON"}</button>{msgs.length>0&&<button onClick={saveChat} style={{padding:"5px 8px",borderRadius:14,fontSize:"0.7rem",border:"none",background:saved?"rgba(102,187,106,0.15)":"transparent",color:saved?"#66BB6A":"rgba(79,195,247,0.4)",cursor:"pointer"}}>{saved?"\u2705":"\u{1F4BE}"}</button>}</header>
-{mode==="writing"?<WritingSession onEnd={onWE} onChunk={onWC}/>:<><main className="messages">{msgs.length===0&&!loading&&<div className="welcome"><Avatar size={90}/><div><p className="welcome-ar">{"\u0623\u0646\u0627 \u0627\u0644\u0645\u0648\u062C\u0629"}</p><p className="welcome-en">Always listening. Tap \u270D\uFE0F BOOK for writing sessions.</p></div><div className="quick-actions">{[{t:"How are you?",e:"\u{1F30A}"},{t:"Help with RootRise",e:"\u{1F680}"},{t:"\u0627\u0643\u062A\u0628 \u0644\u064A \u0634\u0639\u0631",e:"\u270D\uFE0F"},{t:"What can you do?",e:"\u{1F9E0}"}].map(({t,e})=><button key={t} className="quick-btn" onClick={()=>send(t)}>{e} {t}</button>)}</div></div>}{msgs.map((msg,i)=>{const meta=em(msg.engine);return(<div key={i} className={"msg-row "+msg.role}>{msg.role==="assistant"&&<Avatar size={34}/>}<div className="msg-col"><div className={"bubble "+msg.role}>{msg.content}</div>{msg.role==="assistant"&&msg.engine&&msg.engine!=="error"&&<div className="msg-meta"><span className="engine-tag" style={{background:meta.c+"12",color:meta.c,borderColor:meta.c+"20"}}>{meta.i} {meta.l}</span>{msg.category&&<span className="cat-tag">{msg.category}</span>}{msg.vid&&<button className="voice-btn" onClick={()=>play(msg.vid)}>{"\u{1F50A}"}</button>}</div>}</div>{msg.role==="user"&&<div className="user-avatar">T</div>}</div>);})}{loading&&<div className="msg-row assistant"><Avatar size={34} pulse={true}/><div className="loading-bubble"><Wave active={true}/><div className="loading-text">{opus?"\u{1F441}\uFE0F Deep reasoning...":"\u{1F30A} Thinking..."}</div></div></div>}<div ref={endRef}/></main><footer className="input-bar"><Mic onAudio={sendAudio} disabled={loading}/><textarea value={input} onChange={e=>setInput(e.target.value)} onKeyDown={onKey} placeholder={opus?"Deep question...":"Talk to The Wave..."} rows={1} className={"input-field "+(opus?"opus-input":"")}/><button onClick={()=>send(input)} disabled={!input.trim()||loading} className={"send-btn "+(opus?"opus-send":"")+" "+(input.trim()&&!loading?"active":"")}><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg></button></footer></>}</div>);}
+import { useState, useEffect, useRef } from 'react';
+import ErrorBoundary from './components/ErrorBoundary.jsx';
+import Avatar from './components/Avatar.jsx';
+import Splash from './components/Splash.jsx';
+import Chat from './components/Chat.jsx';
+import WritingSession from './components/WritingSession.jsx';
+import Library from './components/Library.jsx';
+import { healthCheck, think, saveIdea } from './utils/api.js';
+
+export default function App() {
+  const [msgs, setMsgs] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState(null);
+  const [splash, setSplash] = useState(true);
+  const [opus, setOpus] = useState(false);
+  const [mode, setMode] = useState('chat'); // 'chat' | 'writing' | 'library'
+  const [saved, setSaved] = useState(false);
+  const audioRef = useRef(null);
+
+  // Health check on mount
+  useEffect(() => {
+    healthCheck()
+      .then(({ data }) => {
+        setStatus(data);
+        setTimeout(() => setSplash(false), 2400);
+      })
+      .catch(() => {
+        setStatus({ status: 'offline' });
+        setTimeout(() => setSplash(false), 2400);
+      });
+  }, []);
+
+  // Save chat to ideas
+  const saveChat = async () => {
+    const { ok } = await saveIdea(
+      'SAVED_CHAT|' + new Date().toISOString() + '|' + JSON.stringify(msgs)
+    );
+    if (ok) {
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    }
+  };
+
+  // Writing session chunk → save to backend
+  const onWritingChunk = (ch) => {
+    saveIdea('BOOK|' + ch.type + '|' + ch.text).catch(() => {});
+  };
+
+  // Writing session end → send to Opus for organization
+  const onWritingEnd = async (chunks) => {
+    setMode('chat');
+    if (!chunks.length) return;
+
+    const raw = chunks.map(c => '[' + c.type.toUpperCase() + '] ' + c.text).join('\n\n');
+    const prompt = `You are helping Tee write his trilingual comic book (Egyptian Arabic + English). Organize these raw voice captures into a structured chapter draft with:
+1) Dialogue with character names
+2) Narration
+3) Scene directions
+4) Keep original language as spoken
+5) Suggest where illustrations go (comic panels)
+
+Raw captures:
+${raw}
+
+Structure into a readable chapter draft.`;
+
+    setMsgs(p => [...p, {
+      role: 'user',
+      content: '✍️ Session ended — ' + chunks.length + ' segments. Organizing...',
+      ts: Date.now(),
+    }]);
+    setLoading(true);
+
+    const { ok, data } = await think(prompt, { modelOverride: 'claude-opus' });
+    setMsgs(p => [...p, {
+      role: 'assistant',
+      content: ok ? (data?.response || 'Could not organize.') : 'Error organizing session.',
+      engine: 'claude-opus',
+      category: 'book-draft',
+      ts: Date.now(),
+    }]);
+    setLoading(false);
+  };
+
+  // Splash screen
+  if (splash) return <Splash />;
+
+  const isAlive = status?.status === 'alive';
+  const engineCount = status?.components?.mind?.online || '3/3';
+
+  return (
+    <div className="app">
+      <div className="ambient-glow" />
+
+      {/* Header */}
+      <header className="header">
+        <Avatar size={38} pulse={loading} />
+        <div className="header-info">
+          <div className="header-title">A-GENTEE</div>
+          <div className="header-status" style={{ color: isAlive ? '#66BB6A' : '#EF5350' }}>
+            {isAlive ? '🌊 ' + engineCount + ' engines' : '⚠ offline'}
+          </div>
+        </div>
+
+        {/* Mode toggles */}
+        <button
+          onClick={() => setMode(mode === 'writing' ? 'chat' : 'writing')}
+          style={{
+            padding: '5px 10px', borderRadius: 14, fontSize: '0.6rem',
+            fontFamily: 'monospace', fontWeight: 600, cursor: 'pointer',
+            border: mode === 'writing' ? '1px solid rgba(255,213,79,0.5)' : '1px solid rgba(79,195,247,0.15)',
+            background: mode === 'writing' ? 'rgba(255,213,79,0.1)' : 'transparent',
+            color: mode === 'writing' ? '#FFD54F' : 'rgba(79,195,247,0.4)',
+          }}
+        >{mode === 'writing' ? '✍️ BOOK' : '💬 CHAT'}</button>
+
+        <button
+          onClick={() => setMode(mode === 'library' ? 'chat' : 'library')}
+          style={{
+            padding: '5px 10px', borderRadius: 14, fontSize: '0.6rem',
+            fontFamily: 'monospace', fontWeight: 600, cursor: 'pointer',
+            border: mode === 'library' ? '1px solid rgba(102,187,106,0.5)' : '1px solid rgba(79,195,247,0.15)',
+            background: mode === 'library' ? 'rgba(102,187,106,0.1)' : 'transparent',
+            color: mode === 'library' ? '#66BB6A' : 'rgba(79,195,247,0.4)',
+          }}
+        >{mode === 'library' ? '📚 LIB' : '📚'}</button>
+
+        <button
+          onClick={() => setOpus(!opus)}
+          style={{
+            padding: '5px 10px', borderRadius: 14, fontSize: '0.6rem',
+            fontFamily: 'monospace', fontWeight: 600, cursor: 'pointer',
+            border: opus ? '1px solid rgba(244,143,177,0.5)' : '1px solid rgba(79,195,247,0.15)',
+            background: opus ? 'rgba(244,143,177,0.12)' : 'transparent',
+            color: opus ? '#F48FB1' : 'rgba(79,195,247,0.4)',
+          }}
+        >{opus ? '👁️ OPUS' : '🧠 SON'}</button>
+
+        {msgs.length > 0 && mode === 'chat' && (
+          <button
+            onClick={saveChat}
+            style={{
+              padding: '5px 8px', borderRadius: 14, fontSize: '0.7rem',
+              border: 'none', cursor: 'pointer',
+              background: saved ? 'rgba(102,187,106,0.15)' : 'transparent',
+              color: saved ? '#66BB6A' : 'rgba(79,195,247,0.4)',
+            }}
+          >{saved ? '✅' : '💾'}</button>
+        )}
+      </header>
+
+      {/* Views — each wrapped in ErrorBoundary */}
+      {mode === 'writing' ? (
+        <ErrorBoundary>
+          <WritingSession onEnd={onWritingEnd} onChunk={onWritingChunk} />
+        </ErrorBoundary>
+      ) : mode === 'library' ? (
+        <ErrorBoundary>
+          <Library />
+        </ErrorBoundary>
+      ) : (
+        <ErrorBoundary>
+          <Chat
+            opus={opus}
+            messages={msgs}
+            setMessages={setMsgs}
+            loading={loading}
+            setLoading={setLoading}
+          />
+        </ErrorBoundary>
+      )}
+    </div>
+  );
+}

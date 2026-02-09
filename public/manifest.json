@@ -1,1 +1,38 @@
-{"name":"A-GENTEE","short_name":"A-GENTEE","description":"AI + Human","start_url":"/","display":"standalone","background_color":"#050A18","theme_color":"#050A18","orientation":"portrait","icons":[{"src":"/kahotia/avatar_closeup_512px.jpg","sizes":"512x512","type":"image/jpeg","purpose":"any"}]}
+{
+  "name": "A-GENTEE · Ambient Intelligence",
+  "short_name": "A-GENTEE",
+  "description": "&I — AI + Human, not AI instead of Human",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0a0a0f",
+  "theme_color": "#0a0a0f",
+  "categories": ["productivity", "utilities"],
+  "icons": [
+    {
+      "src": "/kahotia/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/kahotia/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Voice Chat",
+      "url": "/?mode=chat",
+      "icons": [{ "src": "/kahotia/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Writing Session",
+      "url": "/?mode=writing",
+      "icons": [{ "src": "/kahotia/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}
