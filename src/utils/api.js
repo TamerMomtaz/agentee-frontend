@@ -1,7 +1,7 @@
 // src/utils/api.js — A-GENTEE Backend Bridge
 // Corrected: Feb 9 2026 — URL fix + fetch syntax fix
 
-const BASE = import.meta.env.VITE_API_URL || 'https://agentee.up.railway.app'; // ← FIX #1: correct Railway URL
+const BASE = import.meta.env.VITE_API_URL || 'https://agentee.up.railway.app/api/v1'; // ← FIX #1: correct Railway URL
 
 async function api(path, opts = {}) {
   try {
