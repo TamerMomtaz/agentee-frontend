@@ -3,36 +3,34 @@ import { Component } from 'react';
 export default class ErrorBoundary extends Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { error: null };
   }
 
   static getDerivedStateFromError(error) {
-    return { hasError: true, error };
+    return { error: error.message || 'Something went wrong' };
   }
 
-  componentDidCatch(error, errorInfo) {
-    console.error('ErrorBoundary caught:', error, errorInfo);
+  componentDidCatch(err, info) {
+    console.error('ErrorBoundary caught:', err, info);
   }
 
   render() {
-    if (this.state.hasError) {
+    if (this.state.error) {
       return (
         <div style={{
-          padding: 24, textAlign: 'center', color: '#EF5350',
-          display: 'flex', flexDirection: 'column', alignItems: 'center',
-          justifyContent: 'center', flex: 1, gap: 12
+          flex: 1, display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center', gap: 12, padding: 20,
         }}>
           <div style={{ fontSize: '2rem' }}>⚠️</div>
-          <div style={{ fontSize: '0.9rem', fontWeight: 600 }}>Something crashed</div>
-          <div style={{ fontSize: '0.75rem', color: 'rgba(239,83,80,0.6)', maxWidth: 300 }}>
-            {this.state.error?.message || 'Unknown error'}
+          <div style={{ color: '#EF5350', fontSize: '0.85rem', textAlign: 'center' }}>
+            {this.state.error}
           </div>
           <button
-            onClick={() => this.setState({ hasError: false, error: null })}
+            onClick={() => this.setState({ error: null })}
             style={{
-              marginTop: 8, padding: '10px 24px', borderRadius: 16,
-              border: '1px solid #EF5350', background: 'rgba(239,83,80,0.1)',
-              color: '#EF5350', cursor: 'pointer', fontSize: '0.85rem'
+              padding: '6px 16px', borderRadius: 14, border: '1px solid rgba(79,195,247,0.3)',
+              background: 'rgba(79,195,247,0.08)', color: '#4FC3F7',
+              fontSize: '0.75rem', cursor: 'pointer',
             }}
           >
             Try Again

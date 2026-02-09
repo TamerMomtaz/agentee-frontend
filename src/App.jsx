@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
+import './App.css';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 import Avatar from './components/Avatar.jsx';
 import Splash from './components/Splash.jsx';
@@ -13,11 +14,9 @@ export default function App() {
   const [status, setStatus] = useState(null);
   const [splash, setSplash] = useState(true);
   const [opus, setOpus] = useState(false);
-  const [mode, setMode] = useState('chat'); // 'chat' | 'writing' | 'library'
+  const [mode, setMode] = useState('chat');
   const [saved, setSaved] = useState(false);
-  const audioRef = useRef(null);
 
-  // Health check on mount
   useEffect(() => {
     healthCheck()
       .then(({ data }) => {
@@ -30,23 +29,17 @@ export default function App() {
       });
   }, []);
 
-  // Save chat to ideas
   const saveChat = async () => {
     const { ok } = await saveIdea(
       'SAVED_CHAT|' + new Date().toISOString() + '|' + JSON.stringify(msgs)
     );
-    if (ok) {
-      setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
-    }
+    if (ok) { setSaved(true); setTimeout(() => setSaved(false), 3000); }
   };
 
-  // Writing session chunk → save to backend
   const onWritingChunk = (ch) => {
     saveIdea('BOOK|' + ch.type + '|' + ch.text).catch(() => {});
   };
 
-  // Writing session end → send to Opus for organization
   const onWritingEnd = async (chunks) => {
     setMode('chat');
     if (!chunks.length) return;
@@ -82,7 +75,6 @@ Structure into a readable chapter draft.`;
     setLoading(false);
   };
 
-  // Splash screen
   if (splash) return <Splash />;
 
   const isAlive = status?.status === 'alive';
@@ -92,7 +84,6 @@ Structure into a readable chapter draft.`;
     <div className="app">
       <div className="ambient-glow" />
 
-      {/* Header */}
       <header className="header">
         <Avatar size={38} pulse={loading} />
         <div className="header-info">
@@ -102,38 +93,21 @@ Structure into a readable chapter draft.`;
           </div>
         </div>
 
-        {/* Mode toggles */}
         <button
           onClick={() => setMode(mode === 'writing' ? 'chat' : 'writing')}
-          style={{
-            padding: '5px 10px', borderRadius: 14, fontSize: '0.6rem',
-            fontFamily: 'monospace', fontWeight: 600, cursor: 'pointer',
-            border: mode === 'writing' ? '1px solid rgba(255,213,79,0.5)' : '1px solid rgba(79,195,247,0.15)',
-            background: mode === 'writing' ? 'rgba(255,213,79,0.1)' : 'transparent',
-            color: mode === 'writing' ? '#FFD54F' : 'rgba(79,195,247,0.4)',
-          }}
-        >{mode === 'writing' ? '✍️ BOOK' : '💬 CHAT'}</button>
+          className={`opus-toggle${mode === 'writing' ? ' active' : ''}`}
+          style={mode === 'writing' ? { borderColor: 'rgba(255,213,79,0.5)', background: 'rgba(255,213,79,0.1)', color: '#FFD54F' } : mode === 'chat' ? { borderColor: 'rgba(79,195,247,0.5)', background: 'rgba(79,195,247,0.1)', color: '#4FC3F7' } : {}}
+        >{mode === 'writing' ? '✏️ BOOK' : '💬 CHAT'}</button>
 
         <button
           onClick={() => setMode(mode === 'library' ? 'chat' : 'library')}
-          style={{
-            padding: '5px 10px', borderRadius: 14, fontSize: '0.6rem',
-            fontFamily: 'monospace', fontWeight: 600, cursor: 'pointer',
-            border: mode === 'library' ? '1px solid rgba(102,187,106,0.5)' : '1px solid rgba(79,195,247,0.15)',
-            background: mode === 'library' ? 'rgba(102,187,106,0.1)' : 'transparent',
-            color: mode === 'library' ? '#66BB6A' : 'rgba(79,195,247,0.4)',
-          }}
-        >{mode === 'library' ? '📚 LIB' : '📚'}</button>
+          className={`opus-toggle${mode === 'library' ? ' active' : ''}`}
+          style={mode === 'library' ? { borderColor: 'rgba(102,187,106,0.5)', background: 'rgba(102,187,106,0.1)', color: '#66BB6A' } : {}}
+        >📚 LIB</button>
 
         <button
           onClick={() => setOpus(!opus)}
-          style={{
-            padding: '5px 10px', borderRadius: 14, fontSize: '0.6rem',
-            fontFamily: 'monospace', fontWeight: 600, cursor: 'pointer',
-            border: opus ? '1px solid rgba(244,143,177,0.5)' : '1px solid rgba(79,195,247,0.15)',
-            background: opus ? 'rgba(244,143,177,0.12)' : 'transparent',
-            color: opus ? '#F48FB1' : 'rgba(79,195,247,0.4)',
-          }}
+          className={`opus-toggle${opus ? ' active' : ''}`}
         >{opus ? '👁️ OPUS' : '🧠 SON'}</button>
 
         {msgs.length > 0 && mode === 'chat' && (
@@ -149,7 +123,6 @@ Structure into a readable chapter draft.`;
         )}
       </header>
 
-      {/* Views — each wrapped in ErrorBoundary */}
       {mode === 'writing' ? (
         <ErrorBoundary>
           <WritingSession onEnd={onWritingEnd} onChunk={onWritingChunk} />

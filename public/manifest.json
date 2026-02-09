@@ -1,38 +1,13 @@
 {
-  "name": "A-GENTEE · Ambient Intelligence",
+  "name": "A-GENTEE | The Wave",
   "short_name": "A-GENTEE",
   "description": "&I — AI + Human, not AI instead of Human",
   "start_url": "/",
   "display": "standalone",
-  "orientation": "portrait",
-  "background_color": "#0a0a0f",
-  "theme_color": "#0a0a0f",
-  "categories": ["productivity", "utilities"],
+  "background_color": "#050A18",
+  "theme_color": "#050A18",
   "icons": [
-    {
-      "src": "/kahotia/icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/kahotia/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
-    }
-  ],
-  "screenshots": [],
-  "shortcuts": [
-    {
-      "name": "Voice Chat",
-      "url": "/?mode=chat",
-      "icons": [{ "src": "/kahotia/icon-192.png", "sizes": "192x192" }]
-    },
-    {
-      "name": "Writing Session",
-      "url": "/?mode=writing",
-      "icons": [{ "src": "/kahotia/icon-192.png", "sizes": "192x192" }]
-    }
+    { "src": "/kahotia/icon-192.svg", "sizes": "192x192", "type": "image/svg+xml" },
+    { "src": "/kahotia/icon-512.svg", "sizes": "512x512", "type": "image/svg+xml" }
   ]
 }

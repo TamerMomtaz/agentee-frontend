@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
+  <rect width="192" height="192" rx="40" fill="#050A18"/>
+  <circle cx="96" cy="80" r="45" fill="none" stroke="#FFD54F" stroke-width="2.5" opacity="0.6"/>
+  <circle cx="96" cy="80" r="35" fill="#0D47A1" opacity="0.8"/>
+  <text x="96" y="90" text-anchor="middle" font-family="serif" font-size="28" font-weight="bold" fill="#FFD54F">K</text>
+  <path d="M30 130 Q55 115 80 130 Q105 145 130 130 Q155 115 162 130" stroke="#4FC3F7" stroke-width="3" fill="none" opacity="0.8"/>
+  <text x="96" y="170" text-anchor="middle" font-family="monospace" font-size="12" fill="#4FC3F7" opacity="0.7">&amp;I</text>
+</svg>

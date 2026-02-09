@@ -1,71 +1,47 @@
-const API_BASE = 'https://agentee.up.railway.app';
-const TIMEOUT_MS = 30000;
+const BASE = import.meta.env.VITE_API_URL || 'https://agentee-backend-production.up.railway.app';
 
-async function request(path, options = {}) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
-
+async function api(path, opts = {}) {
   try {
-    const res = await fetch(API_BASE + path, {
-      ...options,
-      signal: controller.signal,
-      headers: {
-        ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
-        ...options.headers,
-      },
+    const res = await fetch(`${BASE}${path}`, {
+      headers: { 'Content-Type': 'application/json' },
+      ...opts,
     });
     const data = await res.json();
     return { ok: res.ok, data };
   } catch (err) {
-    if (err.name === 'AbortError') {
-      return { ok: false, data: null, error: 'Request timed out' };
-    }
+    console.error('API error:', path, err);
     return { ok: false, data: null, error: err.message };
-  } finally {
-    clearTimeout(timeout);
   }
 }
 
-export async function healthCheck() {
-  return request('/api/v1/health');
-}
+export const healthCheck = () => api('/health');
 
-export async function think(query, opts = {}) {
-  const body = { query };
-  if (opts.modelOverride) body.model_override = opts.modelOverride;
-  return request('/api/v1/think', { method: 'POST', body: JSON.stringify(body) });
-}
+export const think = (message, { modelOverride } = {}) =>
+  api('/think', {
+    method: 'POST',
+    body: JSON.stringify({
+      message,
+      ...(modelOverride && { model_override: modelOverride }),
+    }),
+  });
 
-export async function thinkAudio(blob) {
-  const fd = new FormData();
-  fd.append('audio', blob, 'recording.webm');
-  return request('/api/v1/think/audio', { method: 'POST', body: fd });
-}
+export const saveIdea = (content) =>
+  api('/ideas', { method: 'POST', body: JSON.stringify({ content }) });
 
-export async function saveIdea(idea) {
-  return request('/api/v1/ideas', { method: 'POST', body: JSON.stringify({ idea }) });
-}
+export const getLibrary = () => api('/ideas');
 
-export async function getIdeas() {
-  return request('/api/v1/ideas');
-}
+export const exportAll = () => api('/ideas/export');
 
-export async function deleteIdea(id) {
-  return request('/api/v1/ideas/' + id, { method: 'DELETE' });
-}
-
-export function voiceUrl(voiceId) {
-  return API_BASE + '/api/v1/voice/' + voiceId;
-}
-
-export const ENGINE_META = {
-  'claude':      { label: 'Sonnet',  color: '#CE93D8', icon: '🧠' },
-  'claude-opus': { label: 'Opus',    color: '#F48FB1', icon: '👁️' },
-  'gemini':      { label: 'Gemini',  color: '#80CBC4', icon: '💎' },
-  'openai':      { label: 'OpenAI',  color: '#FFE082', icon: '⚡' },
-  'error':       { label: 'Error',   color: '#EF9A9A', icon: '⚠️' },
+// Audio transcription via Whisper (fallback when Web Speech API unavailable)
+export const transcribe = async (blob) => {
+  try {
+    const form = new FormData();
+    form.append('audio', blob, 'recording.webm');
+    const res = await fetch(`${BASE}/transcribe`, { method: 'POST', body: form });
+    const data = await res.json();
+    return { ok: res.ok, data };
+  } catch (err) {
+    console.error('Transcribe error:', err);
+    return { ok: false, data: null };
+  }
 };
-
-export function getEngineMeta(engine) {
-  return ENGINE_META[engine] || { label: engine, color: '#90CAF9', icon: '🌊' };
-}

@@ -1,16 +1,25 @@
-# React + Vite
+# A-GENTEE Frontend v1.1 — Patch
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+## What's Fixed
+1. **Live transcription in Chat mode** — you now SEE text appearing as you speak
+2. **Visual richness restored** — gradients, particles, glassmorphism, fonts
+3. **Kahotia avatar** — proper image loading with fallback
+4. **Unicode emoji rendering** — no more \u270D\uFE0F showing as text
+5. **Language switching** — still crash-proof from v1.0
+6. **Library UI** — proper styling matching the deep space theme
 
-Currently, two official plugins are available:
+## IMPORTANT: Kahotia Avatar Image
+You need to copy your Kahotia avatar image to:
+```
+public/kahotia/avatar_closeup_512px.jpg
+```
+This is YOUR art — I can't generate it. The app will show a "K" fallback if the image is missing.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Deploy
+Replace all files in your agentee-frontend repo with these, then:
+```
+npm install
+git add -A
+git commit -m "v1.1: live transcription + visual restore"
+git push origin master --force
+```

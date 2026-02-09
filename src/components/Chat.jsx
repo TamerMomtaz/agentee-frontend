@@ -1,186 +1,230 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import Avatar from './Avatar.jsx';
-import Wave from './Wave.jsx';
 import Mic from './Mic.jsx';
-import { think, thinkAudio, voiceUrl, getEngineMeta } from '../utils/api.js';
+import Wave from './Wave.jsx';
+import useSpeechRecognition from '../hooks/useSpeechRecognition.js';
+import { think, transcribe } from '../utils/api.js';
+
+const QUICK = [
+  { emoji: '🌊', text: 'How are you?' },
+  { emoji: '🚀', text: 'Help with RootRise' },
+  { emoji: '✍', text: 'اكتب لي شعر' },
+  { emoji: '🧠', text: 'What can you do?' },
+];
 
 export default function Chat({ opus, messages, setMessages, loading, setLoading }) {
   const [input, setInput] = useState('');
+  const [voiceMode, setVoiceMode] = useState(false); // true = live speech-to-text
+  const [liveChunks, setLiveChunks] = useState([]); // accumulated final chunks
   const endRef = useRef(null);
+  const inputRef = useRef(null);
   const audioRef = useRef(null);
 
+  // --- Live speech recognition for chat ---
+  const onFinalResult = useCallback((text) => {
+    setLiveChunks(prev => [...prev, text]);
+  }, []);
+
+  const speech = useSpeechRecognition({
+    lang: 'en-US',
+    continuous: true,
+    onResult: onFinalResult,
+  });
+
+  // Auto-scroll
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, loading]);
+  }, [messages, loading, speech.interim]);
 
+  // Send message
   const send = async (text) => {
-    if (!text.trim() || loading) return;
-    const userMsg = { role: 'user', content: text.trim(), ts: Date.now() };
-    setMessages(p => [...p, userMsg]);
+    const t = (text || input).trim();
+    if (!t || loading) return;
     setInput('');
+
+    setMessages(p => [...p, { role: 'user', content: t, ts: Date.now() }]);
     setLoading(true);
 
-    const { ok, data, error } = await think(text.trim(), {
-      modelOverride: opus ? 'claude-opus' : undefined,
-    });
+    const { ok, data } = await think(t, { modelOverride: opus ? 'claude-opus' : undefined });
+    const reply = ok ? (data?.response || 'No response.') : 'Error connecting to backend.';
+    const engine = ok ? (data?.engine || (opus ? 'claude-opus' : 'claude-sonnet')) : 'error';
 
-    if (ok && data) {
-      setMessages(p => [...p, {
-        role: 'assistant',
-        content: data.response || data.error || '...',
-        engine: opus ? 'claude-opus' : (data.engine || 'unknown'),
-        category: data.category || '',
-        ts: Date.now(),
-        vid: data.voice_id || null,
-      }]);
-      if (data.voice_id) play(data.voice_id);
-    } else {
-      setMessages(p => [...p, {
-        role: 'assistant',
-        content: '🌊 Error: ' + (error || 'Unknown error'),
-        engine: 'error', ts: Date.now(),
-      }]);
-    }
+    setMessages(p => [...p, {
+      role: 'assistant', content: reply, engine,
+      category: data?.category || 'general', ts: Date.now(),
+    }]);
     setLoading(false);
-  };
 
-  const sendAudio = async (blob) => {
-    if (loading) return;
-    setMessages(p => [...p, { role: 'user', content: '🎤 Sending voice...', ts: Date.now(), isVoice: true }]);
-    setLoading(true);
-
-    const { ok, data, error } = await thinkAudio(blob);
-
-    if (ok && data) {
-      const transcript = data.transcription || data.transcript || '';
-      setMessages(p => {
-        const u = [...p];
-        const li = u.findLastIndex(m => m.role === 'user' && m.isVoice);
-        if (li >= 0) {
-          u[li] = { ...u[li], content: transcript ? `🎤 "${transcript}"` : '🎤 (sent)' };
-        }
-        return [...u, {
-          role: 'assistant',
-          content: data.response || data.error || '...',
-          engine: data.engine || 'unknown',
-          category: data.category || '',
-          ts: Date.now(),
-          vid: data.voice_id || null,
-        }];
-      });
-      if (data.voice_id) play(data.voice_id);
-    } else {
-      setMessages(p => [...p, {
-        role: 'assistant',
-        content: '🌊 Voice error: ' + (error || 'Unknown'),
-        engine: 'error', ts: Date.now(),
-      }]);
+    // TTS if available
+    if (ok && data?.audio_url) {
+      try {
+        audioRef.current = new Audio(data.audio_url);
+        audioRef.current.play().catch(() => {});
+      } catch (_) {}
     }
-    setLoading(false);
   };
 
-  const play = async (vid) => {
-    try {
-      if (audioRef.current) audioRef.current.pause();
-      const a = new Audio(voiceUrl(vid));
-      audioRef.current = a;
-      await a.play();
-    } catch (e) { /* silent */ }
+  // Start live voice chat
+  const startVoice = () => {
+    setVoiceMode(true);
+    setLiveChunks([]);
+    speech.start('en-US');
   };
 
+  // Stop voice and send accumulated text
+  const stopVoice = () => {
+    speech.stop();
+    setVoiceMode(false);
+    const allText = [...liveChunks, speech.interim].filter(Boolean).join(' ').trim();
+    setLiveChunks([]);
+    if (allText) send(allText);
+  };
+
+  // Handle mic audio blob (fallback: send to Whisper backend)
+  const onAudioBlob = async (blob) => {
+    const { ok, data } = await transcribe(blob);
+    if (ok && data?.text) send(data.text);
+  };
+
+  // Enter key
   const onKey = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      send(input);
-    }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
   };
+
+  // Full combined live text
+  const liveText = [...liveChunks, speech.interim].filter(Boolean).join(' ');
 
   return (
     <>
-      <main className="messages">
-        {messages.length === 0 && !loading && (
+      <div className="messages">
+        {messages.length === 0 && !voiceMode ? (
           <div className="welcome">
-            <Avatar size={90} />
-            <div>
-              <p className="welcome-ar">أنا الموجة</p>
-              <p className="welcome-en">Always listening. Tap ✍️ BOOK for writing sessions.</p>
+            <Avatar size={120} />
+            <div className="welcome-ar">أنا الموجة</div>
+            <div className="welcome-en">
+              Always listening. Tap ✏️ BOOK for writing sessions.
             </div>
             <div className="quick-actions">
-              {[
-                { t: 'How are you?', e: '🌊' },
-                { t: 'Help with RootRise', e: '🚀' },
-                { t: 'اكتب لي شعر', e: '✍️' },
-                { t: 'What can you do?', e: '🧠' },
-              ].map(({ t, e }) => (
-                <button key={t} className="quick-btn" onClick={() => send(t)}>{e} {t}</button>
+              {QUICK.map((q) => (
+                <button key={q.text} className="quick-btn" onClick={() => send(q.text)}>
+                  {q.emoji} {q.text}
+                </button>
               ))}
             </div>
           </div>
+        ) : (
+          <>
+            {messages.map((m, i) => (
+              <div key={i} className={`msg-row ${m.role}`}>
+                {m.role === 'assistant' && <Avatar size={34} />}
+                {m.role === 'user' && <div className="user-avatar">T</div>}
+                <div className="msg-col">
+                  <div className={`bubble ${m.role}`}>{m.content}</div>
+                  {m.role === 'assistant' && m.engine && (
+                    <div className="msg-meta">
+                      <span
+                        className="engine-tag"
+                        style={{
+                          color: m.engine?.includes('opus') ? '#F48FB1' : m.engine?.includes('gemini') ? '#CE93D8' : '#4FC3F7',
+                          borderColor: m.engine?.includes('opus') ? 'rgba(244,143,177,0.3)' : m.engine?.includes('gemini') ? 'rgba(206,147,216,0.3)' : 'rgba(79,195,247,0.3)',
+                        }}
+                      >
+                        {m.engine}
+                      </span>
+                      {m.category && m.category !== 'general' && (
+                        <span className="cat-tag">{m.category}</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+
+            {/* Loading indicator */}
+            {loading && (
+              <div className="msg-row assistant">
+                <Avatar size={34} pulse />
+                <div className="msg-col">
+                  <div className="loading-bubble">
+                    <Wave active={true} />
+                    <div className="loading-text">
+                      {opus ? '🔮 Opus thinking deeply...' : '🌊 The Wave is thinking...'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
         )}
 
-        {messages.map((msg, i) => {
-          const meta = getEngineMeta(msg.engine);
-          return (
-            <div key={i} className={'msg-row ' + msg.role}>
-              {msg.role === 'assistant' && <Avatar size={34} />}
-              <div className="msg-col">
-                <div className={'bubble ' + msg.role}>{msg.content}</div>
-                {msg.role === 'assistant' && msg.engine && msg.engine !== 'error' && (
-                  <div className="msg-meta">
-                    <span
-                      className="engine-tag"
-                      style={{
-                        background: meta.color + '12',
-                        color: meta.color,
-                        borderColor: meta.color + '20',
-                      }}
-                    >{meta.icon} {meta.label}</span>
-                    {msg.category && <span className="cat-tag">{msg.category}</span>}
-                    {msg.vid && (
-                      <button className="voice-btn" onClick={() => play(msg.vid)}>🔊</button>
-                    )}
-                  </div>
-                )}
-              </div>
-              {msg.role === 'user' && <div className="user-avatar">T</div>}
-            </div>
-          );
-        })}
-
-        {loading && (
-          <div className="msg-row assistant">
-            <Avatar size={34} pulse={true} />
-            <div className="loading-bubble">
-              <Wave active={true} />
-              <div className="loading-text">
-                {opus ? '👁️ Deep reasoning...' : '🌊 Thinking...'}
-              </div>
+        {/* LIVE TRANSCRIPTION — this is what was missing! */}
+        {voiceMode && (
+          <div className="live-transcription">
+            <div className="dot" />
+            <div className="text">
+              {liveText || <span className="interim">Listening...</span>}
             </div>
           </div>
         )}
-        <div ref={endRef} />
-      </main>
 
-      <footer className="input-bar">
-        <Mic onAudio={sendAudio} disabled={loading} />
-        <textarea
-          value={input}
-          onChange={e => setInput(e.target.value)}
+        <div ref={endRef} />
+      </div>
+
+      {/* Input bar */}
+      <div className="input-bar">
+        {/* Voice mode toggle — uses Web Speech API for live transcription */}
+        {speech.supported ? (
+          <button
+            onClick={() => { if (voiceMode) stopVoice(); else startVoice(); }}
+            disabled={loading}
+            style={{
+              width: 46, height: 46, borderRadius: '50%', flexShrink: 0,
+              border: voiceMode ? '2px solid #EF5350' : '2px solid rgba(79,195,247,0.35)',
+              background: voiceMode ? 'rgba(239,83,80,0.15)' : 'rgba(79,195,247,0.06)',
+              color: voiceMode ? '#EF5350' : '#4FC3F7',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              transition: 'all 0.3s', opacity: loading ? 0.4 : 1,
+              animation: voiceMode ? 'mic-pulse 1.2s ease-in-out infinite' : 'none',
+            }}
+          >
+            {voiceMode ? (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <rect x="6" y="6" width="12" height="12" rx="2" />
+              </svg>
+            ) : (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm-1-9c0-.55.45-1 1-1s1 .45 1 1v6c0 .55-.45 1-1 1s-1-.45-1-1V5z" />
+                <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z" />
+              </svg>
+            )}
+          </button>
+        ) : (
+          /* Fallback: record audio blob → send to Whisper */
+          <Mic onAudio={onAudioBlob} disabled={loading} />
+        )}
+
+        <input
+          ref={inputRef}
+          className={`input-field${opus ? ' opus-input' : ''}`}
+          value={voiceMode ? liveText : input}
+          onChange={(e) => setInput(e.target.value)}
           onKeyDown={onKey}
-          placeholder={opus ? 'Deep question...' : 'Talk to The Wave...'}
-          rows={1}
-          className={'input-field ' + (opus ? 'opus-input' : '')}
+          placeholder={voiceMode ? '🎤 Speaking...' : 'Talk to The Wave...'}
+          readOnly={voiceMode}
+          disabled={loading}
         />
+
         <button
-          onClick={() => send(input)}
-          disabled={!input.trim() || loading}
-          className={'send-btn ' + (opus ? 'opus-send ' : '') + (input.trim() && !loading ? 'active' : '')}
+          className={`send-btn${opus ? ' opus-send' : ''}${(input.trim() || voiceMode) && !loading ? ' active' : ''}`}
+          onClick={() => { if (voiceMode) stopVoice(); else send(); }}
+          disabled={(!input.trim() && !voiceMode) || loading}
         >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
             <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
           </svg>
         </button>
-      </footer>
+      </div>
     </>
   );
 }
