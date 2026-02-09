@@ -1,7 +1,7 @@
 # A-GENTEE Frontend v1.1 — Patch
 
 ## What's Fixed
-1. **Live transcription in Chat mode** — you now SEE text appearing as you speak
+1. **Live transcription in Chat mode** — you SEE text appearing as you speak
 2. **Visual richness restored** — gradients, particles, glassmorphism, fonts
 3. **Kahotia avatar** — proper image loading with fallback
 4. **Unicode emoji rendering** — no more \u270D\uFE0F showing as text
