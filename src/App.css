@@ -799,3 +799,118 @@
   .pb-header-hint { display: none; }
   .pb-form-label { min-width: 42px; font-size: 0.62rem; }
 }
+
+/* ═══════════════════════════════════════════
+   STORYBOARD — Organize & Export Steps
+   ═══════════════════════════════════════════ */
+
+/* Organize step: AI panels section */
+.ws-panels-section {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(79,195,247,0.15);
+}
+
+.ws-panels-title {
+  font-family: 'Fira Mono', monospace;
+  font-size: 0.85rem;
+  color: #FFD54F;
+  margin-bottom: 12px;
+  font-weight: 600;
+}
+
+.ws-panels-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.ws-panel-card {
+  background: rgba(10, 18, 40, 0.4);
+  border: 1px solid rgba(79,195,247,0.08);
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.ws-panel-card-number {
+  font-family: 'Fira Mono', monospace;
+  font-size: 0.72rem;
+  color: #4FC3F7;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 6px;
+}
+
+/* Export step: storyboard preview */
+.ws-export-storyboard {
+  margin-bottom: 20px;
+  padding: 14px;
+  background: rgba(10, 18, 40, 0.5);
+  border: 1px solid rgba(255,213,79,0.12);
+  border-radius: 10px;
+}
+
+.ws-export-storyboard-title {
+  font-family: 'Fira Mono', monospace;
+  font-size: 0.9rem;
+  color: #FFD54F;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.ws-export-storyboard-hint {
+  font-size: 0.72rem;
+  color: rgba(224, 232, 240, 0.35);
+  margin-bottom: 12px;
+}
+
+.ws-export-panels-mini {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ws-export-panel-thumb {
+  position: relative;
+}
+
+.ws-export-panel-num {
+  font-family: 'Fira Mono', monospace;
+  font-size: 0.68rem;
+  color: #4FC3F7;
+  margin-bottom: 4px;
+  letter-spacing: 0.5px;
+}
+
+/* Storyboard export buttons */
+.ws-export-btn.ws-export-storyboard {
+  background: rgba(255,213,79,0.12);
+  border-color: rgba(255,213,79,0.25);
+  color: #FFD54F;
+}
+
+.ws-export-btn.ws-export-storyboard:hover {
+  background: rgba(255,213,79,0.2);
+}
+
+.ws-export-btn.ws-export-print {
+  background: rgba(206,147,216,0.12);
+  border-color: rgba(206,147,216,0.25);
+  color: #CE93D8;
+}
+
+.ws-export-btn.ws-export-print:hover {
+  background: rgba(206,147,216,0.2);
+}
+
+/* Mobile adjustments */
+@media (max-width: 480px) {
+  .ws-export-actions {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .ws-export-btn {
+    font-size: 0.72rem;
+    padding: 6px 10px;
+  }
+}
