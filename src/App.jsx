@@ -7,6 +7,9 @@ import Chat from './components/Chat.jsx';
 import WritingSession from './components/WritingSession.jsx';
 import Library from './components/Library.jsx';
 import { healthCheck, saveIdea } from './utils/api.js';
+import NotificationBell from './components/NotificationBell.jsx';
+import ModeSwitcher from './components/ModeSwitcher.jsx';
+import GuardTeeWidget from './components/GuardTeeWidget.jsx';
 
 export default function App() {
   const [msgs, setMsgs] = useState([]);
