@@ -84,6 +84,8 @@ export default function App() {
           className={`opus-toggle${opus ? ' active' : ''}`}
         >{opus ? '👁️ OPUS' : '🧠 SON'}</button>
 
+        <ModeSwitcher />
+        <NotificationBell />
         {msgs.length > 0 && mode === 'chat' && (
           <button
             onClick={saveChat}
@@ -103,6 +105,7 @@ export default function App() {
         </ErrorBoundary>
       ) : mode === 'library' ? (
         <ErrorBoundary>
+          <GuardTeeWidget />
           <Library />
         </ErrorBoundary>
       ) : (
