@@ -74,7 +74,19 @@ export default function App() {
         >{mode === 'writing' ? '✏️ BOOK' : '💬 CHAT'}</button>
 
         <button
-          onClick={() => setMode(mode === 'library' ? 'chat' : 'library')}
+          onClick={() => setMode('chat')}
+          className={`opus-toggle${mode === 'chat' ? ' active' : ''}`}
+          style={mode === 'chat' ? { borderColor: 'rgba(79,195,247,0.5)', background: 'rgba(79,195,247,0.1)', color: '#4FC3F7' } : {}}
+        >💬 CHAT</button>
+
+        <button
+          onClick={() => setMode('writing')}
+          className={`opus-toggle${mode === 'writing' ? ' active' : ''}`}
+          style={mode === 'writing' ? { borderColor: 'rgba(255,213,79,0.5)', background: 'rgba(255,213,79,0.1)', color: '#FFD54F' } : {}}
+        >✏️ BOOK</button>
+
+        <button
+          onClick={() => setMode('library')}
           className={`opus-toggle${mode === 'library' ? ' active' : ''}`}
           style={mode === 'library' ? { borderColor: 'rgba(102,187,106,0.5)', background: 'rgba(102,187,106,0.1)', color: '#66BB6A' } : {}}
         >📚 LIB</button>
