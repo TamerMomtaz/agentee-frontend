@@ -97,11 +97,12 @@ export const transcribe = async (blob) => {
 // --- Stats ---
 export const getStats = () => api('/stats');
 
-// --- Mode (voice personality) ---
-export const setMode = (voicePersonality = 'default', voiceEnabled = true) =>
+// --- Mode (behavioral mode + voice personality) ---
+export const setMode = (mode = 'default', voicePersonality = 'default', voiceEnabled = true) =>
   api('/mode', {
     method: 'POST',
     body: JSON.stringify({
+      mode,
       voice_personality: voicePersonality,
       voice_enabled: voiceEnabled,
     }),
