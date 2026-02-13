@@ -3,9 +3,6 @@
 
 const BASE = import.meta.env.VITE_API_URL || 'https://agentee.up.railway.app/api/v1';
 
-// Strip /api/v1 to get origin for VAPID/push endpoints
-// (push endpoints are also under /api/v1 so we keep BASE as-is)
-
 /**
  * Fetch the VAPID public key from the backend.
  */
@@ -104,17 +101,37 @@ export async function isSubscribed() {
 
 /**
  * Unsubscribe from push notifications.
+ * Unsubscribes from browser AND tells backend to remove the subscription.
  */
 export async function unsubscribeFromPush() {
   try {
     const registration = await navigator.serviceWorker.ready;
     const subscription = await registration.pushManager.getSubscription();
     if (subscription) {
+      // Get endpoint before unsubscribing (needed for backend cleanup)
+      const endpoint = subscription.endpoint;
+
+      // Unsubscribe from browser
       await subscription.unsubscribe();
-      console.log('[Push] Unsubscribed');
+
+      // Tell backend to remove this subscription
+      try {
+        await fetch(`${BASE}/push/unsubscribe`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ endpoint }),
+        });
+      } catch (backendErr) {
+        // Backend cleanup failed — not critical, subscription is already
+        // removed from browser. Backend will clean up on next push (410 Gone).
+        console.warn('[Push] Backend cleanup failed:', backendErr);
+      }
+
+      console.log('[Push] Unsubscribed ✅');
       return true;
     }
-    return false;
+    // No subscription found — still return true so UI resets
+    return true;
   } catch (err) {
     console.error('[Push] Unsubscribe failed:', err);
     return false;
