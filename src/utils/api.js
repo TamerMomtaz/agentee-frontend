@@ -63,8 +63,21 @@ export const getLibrary = () => api('/ideas');
 export const getHistory = (limit = 20, offset = 0) =>
   api(`/history?limit=${limit}&offset=${offset}`);
 
-// --- Export (kept for compatibility, may need backend endpoint) ---
-export const exportAll = () => api('/ideas/export');
+// --- Export (client-side — no backend endpoint needed) ---
+export const exportAll = async () => {
+  const { ok, data } = await api('/ideas');
+  if (!ok || !Array.isArray(data?.ideas)) return { ok: false, data: null };
+  return {
+    ok: true,
+    data: {
+      content: {
+        exported_at: new Date().toISOString(),
+        total: data.ideas.length,
+        ideas: data.ideas,
+      },
+    },
+  };
+};
 
 // --- Audio transcription + think (Whisper → AI response) ---
 // Backend endpoint: POST /think/audio  (NOT /transcribe)
