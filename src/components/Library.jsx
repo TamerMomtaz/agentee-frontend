@@ -12,7 +12,7 @@ export default function Library() {
   const load = async () => {
     setLoading(true);
     const { ok, data } = await getLibrary();
-    if (ok && Array.isArray(data?.items)) setItems(data.items);
+    if (ok && Array.isArray(data?.ideas)) setItems(data.ideas);
     setLoading(false);
   };
 
@@ -41,13 +41,15 @@ export default function Library() {
   };
 
   const parseItem = (item) => {
-    const c = item.content || '';
-    if (c.startsWith('BOOK|')) {
-      const parts = c.split('|');
-      return { type: '📖', label: parts[1] || 'Book', text: parts.slice(2).join('|'), color: '#FFD54F' };
+    const c = item.idea || item.content || '';
+    const cat = item.category || '';
+    if (cat.startsWith('book_') || c.startsWith('BOOK|')) {
+      const parts = c.startsWith('BOOK|') ? c.split('|') : ['', cat.replace('book_', ''), c];
+      return { type: '📖', label: parts[1] || 'Book', text: parts.slice(2).join('|') || c, color: '#FFD54F' };
     }
-    if (c.startsWith('SAVED_CHAT|')) {
-      return { type: '💬', label: 'Chat', text: c.substring(11, 80) + '...', color: '#4FC3F7' };
+    if (cat === 'saved_chat' || c.startsWith('SAVED_CHAT|')) {
+      const text = c.startsWith('SAVED_CHAT|') ? c.substring(11, 80) : c.substring(0, 80);
+      return { type: '💬', label: 'Chat', text: text + '...', color: '#4FC3F7' };
     }
     return { type: '💡', label: 'Idea', text: c.substring(0, 120), color: '#66BB6A' };
   };
