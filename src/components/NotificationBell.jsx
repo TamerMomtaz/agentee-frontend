@@ -10,10 +10,15 @@ export default function NotificationBell() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    isSubscribed().then((status) => {
-      setSubscribed(status);
-      setLoading(false);
-    }).catch(() => setLoading(false));
+    // Race against a 3-second timeout — isSubscribed() can hang forever
+    // if the service worker never becomes ready
+    const timeout = new Promise((resolve) => setTimeout(() => resolve(null), 3000));
+    Promise.race([isSubscribed(), timeout])
+      .then((status) => {
+        if (status !== null) setSubscribed(status);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
   }, []);
 
   const handleToggle = async () => {
