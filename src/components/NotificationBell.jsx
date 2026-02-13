@@ -13,27 +13,33 @@ export default function NotificationBell() {
     isSubscribed().then((status) => {
       setSubscribed(status);
       setLoading(false);
-    });
+    }).catch(() => setLoading(false));
   }, []);
 
   const handleToggle = async () => {
+    if (loading) return;
     setLoading(true);
     setError(null);
 
     try {
       if (subscribed) {
         const success = await unsubscribeFromPush();
-        if (success) setSubscribed(false);
+        // Always reset UI — even if backend cleanup fails,
+        // browser subscription is removed
+        setSubscribed(!success);
       } else {
         const sub = await subscribeToPush();
         if (sub) {
           setSubscribed(true);
         } else {
           setError('Enable in browser settings');
+          // Clear error after 3 seconds
+          setTimeout(() => setError(null), 3000);
         }
       }
     } catch (err) {
       setError('Something went wrong');
+      setTimeout(() => setError(null), 3000);
       console.error(err);
     } finally {
       setLoading(false);
