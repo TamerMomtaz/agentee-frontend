@@ -12,13 +12,19 @@ const QUICK = [
   { emoji: '🧠', text: 'What can you do?' },
 ];
 
+// Unique ID generator for message keys
+let msgIdCounter = 0;
+const nextMsgId = () => `msg-${Date.now()}-${++msgIdCounter}`;
+
 export default function Chat({ opus, messages, setMessages, loading, setLoading }) {
   const [input, setInput] = useState('');
-  const [voiceMode, setVoiceMode] = useState(false); // true = live speech-to-text
-  const [liveChunks, setLiveChunks] = useState([]); // accumulated final chunks
+  const [voiceMode, setVoiceMode] = useState(false);
+  const [liveChunks, setLiveChunks] = useState([]);
+  const [copiedId, setCopiedId] = useState(null);
   const endRef = useRef(null);
   const inputRef = useRef(null);
   const audioRef = useRef(null);
+  const sendingRef = useRef(false); // Double-send guard
 
   // --- Live speech recognition for chat ---
   const onFinalResult = useCallback((text) => {
@@ -36,31 +42,61 @@ export default function Chat({ opus, messages, setMessages, loading, setLoading 
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading, speech.interim]);
 
-  // Send message
+  // Copy message text to clipboard
+  const copyMessage = async (text, id) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 2000);
+    } catch {
+      // Fallback for older browsers / insecure contexts
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 2000);
+    }
+  };
+
+  // Send message — with double-send protection
   const send = async (text) => {
     const t = (text || input).trim();
-    if (!t || loading) return;
+    if (!t || loading || sendingRef.current) return;
+
+    // Lock immediately to prevent double-fire on mobile
+    sendingRef.current = true;
     setInput('');
 
-    setMessages(p => [...p, { role: 'user', content: t, ts: Date.now() }]);
+    const userMsgId = nextMsgId();
+    setMessages(p => [...p, { id: userMsgId, role: 'user', content: t, ts: Date.now() }]);
     setLoading(true);
 
-    const { ok, data } = await think(t, { modelOverride: opus ? 'claude-opus' : undefined });
-    const reply = ok ? (data?.response || 'No response.') : 'Error connecting to backend.';
-    const engine = ok ? (data?.engine || (opus ? 'claude-opus' : 'claude-sonnet')) : 'error';
+    try {
+      const { ok, data } = await think(t, { modelOverride: opus ? 'claude-opus' : undefined });
+      const reply = ok ? (data?.response || 'No response.') : 'Error connecting to backend.';
+      const engine = ok ? (data?.engine || (opus ? 'claude-opus' : 'claude-sonnet')) : 'error';
 
-    setMessages(p => [...p, {
-      role: 'assistant', content: reply, engine,
-      category: data?.category || 'general', ts: Date.now(),
-    }]);
-    setLoading(false);
+      const assistantMsgId = nextMsgId();
+      setMessages(p => [...p, {
+        id: assistantMsgId, role: 'assistant', content: reply, engine,
+        category: data?.category || 'general', ts: Date.now(),
+      }]);
 
-    // TTS if available
-    if (ok && data?.audio_url) {
-      try {
-        audioRef.current = new Audio(data.audio_url);
-        audioRef.current.play().catch(() => {});
-      } catch (_) {}
+      // TTS if available
+      if (ok && data?.audio_url) {
+        try {
+          audioRef.current = new Audio(data.audio_url);
+          audioRef.current.play().catch(() => {});
+        } catch (_) {}
+      }
+    } finally {
+      setLoading(false);
+      sendingRef.current = false;
     }
   };
 
@@ -114,12 +150,36 @@ export default function Chat({ opus, messages, setMessages, loading, setLoading 
           </div>
         ) : (
           <>
-            {messages.map((m, i) => (
-              <div key={i} className={`msg-row ${m.role}`}>
+            {messages.map((m) => (
+              <div key={m.id || m.ts} className={`msg-row ${m.role}`}>
                 {m.role === 'assistant' && <Avatar size={34} />}
                 {m.role === 'user' && <div className="user-avatar">T</div>}
                 <div className="msg-col">
-                  <div className={`bubble ${m.role}`}>{m.content}</div>
+                  <div className={`bubble ${m.role}`}>
+                    {m.content}
+                    {/* Copy button — shows on every message */}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); copyMessage(m.content, m.id || m.ts); }}
+                      title="Copy"
+                      style={{
+                        position: 'absolute',
+                        top: 6,
+                        right: 6,
+                        background: 'rgba(255,255,255,0.06)',
+                        border: 'none',
+                        borderRadius: 6,
+                        padding: '3px 6px',
+                        cursor: 'pointer',
+                        fontSize: '0.65rem',
+                        color: copiedId === (m.id || m.ts) ? '#66BB6A' : 'rgba(255,255,255,0.3)',
+                        opacity: copiedId === (m.id || m.ts) ? 1 : 0,
+                        transition: 'opacity 0.2s, color 0.2s',
+                      }}
+                      className="copy-btn"
+                    >
+                      {copiedId === (m.id || m.ts) ? '✓ Copied' : '📋'}
+                    </button>
+                  </div>
                   {m.role === 'assistant' && m.engine && (
                     <div className="msg-meta">
                       <span
@@ -157,7 +217,7 @@ export default function Chat({ opus, messages, setMessages, loading, setLoading 
           </>
         )}
 
-        {/* LIVE TRANSCRIPTION — this is what was missing! */}
+        {/* LIVE TRANSCRIPTION */}
         {voiceMode && (
           <div className="live-transcription">
             <div className="dot" />
@@ -172,7 +232,6 @@ export default function Chat({ opus, messages, setMessages, loading, setLoading 
 
       {/* Input bar */}
       <div className="input-bar">
-        {/* Voice mode toggle — uses Web Speech API for live transcription */}
         {speech.supported ? (
           <button
             onClick={() => { if (voiceMode) stopVoice(); else startVoice(); }}
@@ -200,7 +259,6 @@ export default function Chat({ opus, messages, setMessages, loading, setLoading 
             )}
           </button>
         ) : (
-          /* Fallback: record audio blob → send to Whisper */
           <Mic onAudio={onAudioBlob} disabled={loading} />
         )}
 
