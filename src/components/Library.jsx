@@ -19,10 +19,12 @@ export default function Library() {
   useEffect(() => { load(); }, []);
 
   const filtered = items.filter(item => {
+    const cat = item.category || '';
+    const c = item.idea || item.content || '';
     if (tab === 'All') return true;
-    if (tab === 'Book') return item.content?.startsWith('BOOK|');
-    if (tab === 'Chats') return item.content?.startsWith('SAVED_CHAT|');
-    if (tab === 'Ideas') return !item.content?.startsWith('BOOK|') && !item.content?.startsWith('SAVED_CHAT|');
+    if (tab === 'Book') return cat.startsWith('book_') || c.startsWith('BOOK|');
+    if (tab === 'Chats') return cat === 'saved_chat' || c.startsWith('SAVED_CHAT|');
+    if (tab === 'Ideas') return !cat.startsWith('book_') && cat !== 'saved_chat' && !c.startsWith('BOOK|') && !c.startsWith('SAVED_CHAT|');
     return true;
   });
 
