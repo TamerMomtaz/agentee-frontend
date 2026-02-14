@@ -26,26 +26,32 @@ export default function NotificationBell() {
     setLoading(true);
     setError(null);
 
+    // Timeout guard — subscribeToPush() can hang forever on
+    // navigator.serviceWorker.ready if SW is broken
+    const timeout = (ms) => new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Timed out')), ms)
+    );
+
     try {
       if (subscribed) {
-        const success = await unsubscribeFromPush();
-        // Always reset UI — even if backend cleanup fails,
-        // browser subscription is removed
+        const success = await Promise.race([unsubscribeFromPush(), timeout(5000)]);
         setSubscribed(!success);
       } else {
-        const sub = await subscribeToPush();
+        const sub = await Promise.race([subscribeToPush(), timeout(5000)]);
         if (sub) {
           setSubscribed(true);
         } else {
           setError('Enable in browser settings');
-          // Clear error after 3 seconds
           setTimeout(() => setError(null), 3000);
         }
       }
     } catch (err) {
-      setError('Something went wrong');
+      const msg = err.message === 'Timed out'
+        ? 'Push setup timed out'
+        : 'Something went wrong';
+      setError(msg);
       setTimeout(() => setError(null), 3000);
-      console.error(err);
+      console.error('Bell toggle:', err);
     } finally {
       setLoading(false);
     }
