@@ -68,18 +68,6 @@ export default function App() {
         </div>
 
         <button
-          onClick={() => setMode(mode === 'writing' ? 'chat' : 'writing')}
-          className={`opus-toggle${mode === 'writing' ? ' active' : ''}`}
-          style={mode === 'writing' ? { borderColor: 'rgba(255,213,79,0.5)', background: 'rgba(255,213,79,0.1)', color: '#FFD54F' } : mode === 'chat' ? { borderColor: 'rgba(79,195,247,0.5)', background: 'rgba(79,195,247,0.1)', color: '#4FC3F7' } : {}}
-        >{mode === 'writing' ? '✏️ BOOK' : '💬 CHAT'}</button>
-
-        <button
-          onClick={() => setMode('chat')}
-          className={`opus-toggle${mode === 'chat' ? ' active' : ''}`}
-          style={mode === 'chat' ? { borderColor: 'rgba(79,195,247,0.5)', background: 'rgba(79,195,247,0.1)', color: '#4FC3F7' } : {}}
-        >💬 CHAT</button>
-
-        <button
           onClick={() => setMode('chat')}
           className={`opus-toggle${mode === 'chat' ? ' active' : ''}`}
           style={mode === 'chat' ? { borderColor: 'rgba(79,195,247,0.5)', background: 'rgba(79,195,247,0.1)', color: '#4FC3F7' } : {}}
@@ -101,6 +89,7 @@ export default function App() {
           onClick={() => setOpus(!opus)}
           className={`opus-toggle${opus ? ' active' : ''}`}
         >{opus ? '👁️ OPUS' : '🧠 SON'}</button>
+        
         <ModeSwitcher />
         <NotificationBell />
         {msgs.length > 0 && mode === 'chat' && (
